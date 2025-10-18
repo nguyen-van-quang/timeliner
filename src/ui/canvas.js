@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { handleDrag } from '../utils/util_handle_drag.js';
 
 function Canvas(w, h) {

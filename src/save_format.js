@@ -1,3 +1,4 @@
+/* eslint-disable */
 /* Layer Schema */
 /*
 var layer_1 = [

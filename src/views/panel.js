@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { LayoutConstants }  from '../layout_constants.js'
 import { Theme }  from '../theme.js'
 import { utils }  from '../utils/utils.js'
@@ -347,7 +348,7 @@ function TimelinePanel(data, dispatcher) {
 		ctx_wrap
 			.save()
 			.scale(dpr, dpr)
-			.translate(0, MARKER_TRACK_HEIGHT)
+			.translate(0, MARKER_TRACK_HEIGHT + 15)
 			.beginPath()
 			.rect(0, 0, LayoutConstants.width, SCROLL_HEIGHT)
 			.translate(-scrollLeft, -scrollTop)
@@ -445,7 +446,7 @@ function TimelinePanel(data, dispatcher) {
 		// Encapsulate a scroll rect for the layers
 		ctx_wrap
 			.save()
-			.translate(0, MARKER_TRACK_HEIGHT)
+			.translate(0, MARKER_TRACK_HEIGHT + 15)
 			.beginPath()
 			.rect(0, 0, LayoutConstants.width, SCROLL_HEIGHT)
 			.translate(-scrollLeft, -scrollTop)
@@ -491,8 +492,8 @@ function TimelinePanel(data, dispatcher) {
 	}
 
 	function y_to_track(y) {
-		if (y - MARKER_TRACK_HEIGHT < 0) return -1;
-		return (y - MARKER_TRACK_HEIGHT + scrollTop) / LINE_HEIGHT | 0;
+		if (y - (MARKER_TRACK_HEIGHT + 15) < 0) return -1;
+		return (y - (MARKER_TRACK_HEIGHT + 15) + scrollTop) / LINE_HEIGHT | 0;
 	}
 
 

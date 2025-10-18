@@ -1,3 +1,4 @@
+/* eslint-disable */
 var package_json = { version: "test-version" };
 
 import { LayoutConstants } from '../layout_constants.js'

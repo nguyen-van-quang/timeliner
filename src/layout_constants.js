@@ -1,10 +1,11 @@
+/* eslint-disable */
 var DEFAULT_TIME_SCALE = 60;
 
 // Dimensions
 var LayoutConstants = {
 	LINE_HEIGHT: 26,
 	DIAMOND_SIZE: 10,
-	MARKER_TRACK_HEIGHT: 60,
+	MARKER_TRACK_HEIGHT: 75,
 	width: 600,
 	height: 200,
 	TIMELINE_SCROLL_HEIGHT: 0,

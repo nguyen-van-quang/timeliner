@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { Do } from '../utils/do.js'
 import { utils } from '../utils/utils.js'
 

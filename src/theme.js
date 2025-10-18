@@ -1,3 +1,4 @@
+/* eslint-disable */
 const Theme = {
 	// photoshop colors
 	a: '#343434',

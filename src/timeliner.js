@@ -1,8 +1,7 @@
+/* eslint-disable */
 /*
  * @author Joshua Koo http://joshuakoo.com
  */
-
-const TIMELINER_VERSION = "2.0.0-dev";
 
 import { UndoManager, UndoState } from './utils/util_undo.js'
 import { Dispatcher } from './utils/util_dispatcher.js'
@@ -18,7 +17,6 @@ var openAs = utils.openAs
 var STORAGE_PREFIX = utils.STORAGE_PREFIX
 import { ScrollBar } from './ui/scrollbar.js'
 import { DataStore } from './utils/util_datastore.js'
-import { DockingWindow } from './utils/docking_window.js'
 
 var Z_INDEX = 999;
 
@@ -36,7 +34,7 @@ function LayerProp(name) {
 	*/
 }
 
-function Timeliner(target) {
+function Timeliner(target, container, options) {
 	// Dispatcher for coordination
 	var dispatcher = new Dispatcher();
 
@@ -51,7 +49,7 @@ function Timeliner(target) {
 	var undo_manager = new UndoManager(dispatcher);
 
 	// Views
-	var timeline = new TimelinePanel(data, dispatcher);
+	var timeLinePanel = new TimelinePanel(data, dispatcher);
 	var layer_panel = new LayerCabinet(data, dispatcher);
 
 	setTimeout(function() {
@@ -64,9 +62,6 @@ function Timeliner(target) {
 
 		var t = data.get('ui:currentTime').value;
 		var v = utils.findTimeinLayer(layer, t);
-
-		// console.log(v, '...keyframe index', index, utils.format_friendly_seconds(t), typeof(v));
-		// console.log('layer', layer, value);
 
 		if (typeof(v) === 'number') {
 			layer.values.splice(v, 0, {
@@ -87,18 +82,26 @@ function Timeliner(target) {
 
 	});
 
+	dispatcher.on('layer.remove', function(layer) {
+		var index = layers.indexOf(layer);
+		if (index > -1) {
+			layers.splice(index, 1);
+
+			undo_manager.save(new UndoState(data, 'Remove Layer'));
+			repaintAll();
+		}
+	});
+
 	dispatcher.on('keyframe.move', function(layer, value) {
 		undo_manager.save(new UndoState(data, 'Move Keyframe'));
 	});
 
-	// dispatcher.fire('value.change', layer, me.value);
 	dispatcher.on('value.change', function(layer, value, dont_save) {
 		if (layer._mute) return;
 
 		var t = data.get('ui:currentTime').value;
 		var v = utils.findTimeinLayer(layer, t);
 
-		// console.log(v, 'value.change', layer, value, utils.format_friendly_seconds(t), typeof(v));
 		if (typeof(v) === 'number') {
 			layer.values.splice(v, 0, {
 				time: t,
@@ -112,15 +115,6 @@ function Timeliner(target) {
 		}
 
 		repaintAll();
-	});
-
-	dispatcher.on('action:solo', function(layer, solo) {
-		layer._solo = solo;
-
-		console.log(layer, solo);
-
-		// When a track is solo-ed, playback only changes values
-		// of that layer.
 	});
 
 	dispatcher.on('action:mute', function(layer, mute) {
@@ -140,13 +134,11 @@ function Timeliner(target) {
 	dispatcher.on('ease', function(layer, ease_type) {
 		var t = data.get('ui:currentTime').value;
 		var v = utils.timeAtLayer(layer, t);
-		// console.log('Ease Change > ', layer, value, v);
 		if (v && v.entry) {
 			v.entry.tween  = ease_type;
 		}
 
 		undo_manager.save(new UndoState(data, 'Add Ease'));
-
 		repaintAll();
 	});
 
@@ -169,20 +161,27 @@ function Timeliner(target) {
 		setCurrentTime(played_from);
 	});
 
-	dispatcher.on('controls.play', startPlaying);
+	// dispatcher.on('controls.play', startPlaying);
 	dispatcher.on('controls.pause', pausePlaying);
 
 	function startPlaying() {
-		// played_from = timeline.current_frame;
 		start_play = performance.now() - data.get('ui:currentTime').value * 1000;
-		layer_panel.setControlStatus(true);
-		// dispatcher.fire('controls.status', true);
+		// layer_panel.setControlStatus(true);
+		if (options?.dispatcherEventCb) {
+			if (data.get('ui:currentTime').value > 0) {
+				options.dispatcherEventCb("resume");
+			} else{
+				options.dispatcherEventCb("start");
+			}
+		}
 	}
 
 	function pausePlaying() {
 		start_play = null;
-		layer_panel.setControlStatus(false);
-		// dispatcher.fire('controls.status', false);
+		// layer_panel.setControlStatus(false);
+		if (options?.dispatcherEventCb) {
+			options.dispatcherEventCb("pause");
+		}
 	}
 
 	dispatcher.on('controls.stop', function() {
@@ -213,6 +212,9 @@ function Timeliner(target) {
 
 		if (start_play) start_play = performance.now() - value * 1000;
 		repaintAll();
+		if (options?.dispatcherEventCb) {
+			options.dispatcherEventCb("change-time", currentTimeStore.value);
+		}
 		// layer_panel.repaint(s);
 	}
 
@@ -224,7 +226,7 @@ function Timeliner(target) {
 		console.log('range', v);
 		data.get('ui:timeScale').value = v;
 
-		timeline.repaint();
+		timeLinePanel.repaint();
 	});
 
 	// handle undo / redo
@@ -264,16 +266,16 @@ function Timeliner(target) {
 			div.style.width = Settings.width + 'px';
 			div.style.height = Settings.height + 'px';
 
-			restyle(layer_panel.dom, timeline.dom);
+			restyle(layer_panel.dom, timeLinePanel.dom);
 
-			timeline.resize();
+			timeLinePanel.resize();
 			repaintAll();
 			needsResize = false;
 
 			dispatcher.fire('resize');
 		}
 
-		timeline._paint();
+		timeLinePanel._paint();
 	}
 
 	paint();
@@ -354,7 +356,7 @@ function Timeliner(target) {
 	function updateState() {
 		layers = layer_store.value; // FIXME: support Arrays
 		layer_panel.setState(layer_store);
-		timeline.setState(layer_store);
+		timeLinePanel.setState(layer_store);
 
 		repaintAll();
 	}
@@ -364,7 +366,7 @@ function Timeliner(target) {
 		scrollbar.setLength(Settings.TIMELINE_SCROLL_HEIGHT / content_height);
 
 		layer_panel.repaint();
-		timeline.repaint();
+		timeLinePanel.repaint();
 	}
 
 	function promptImport() {
@@ -413,19 +415,11 @@ function Timeliner(target) {
 	*/
 
 	var div = document.createElement('div');
-	style(div, {
-		textAlign: 'left',
-		lineHeight: '1em',
-		position: 'absolute',
-		top: '22px'
-	});
 
 	var pane = document.createElement('div');
 
 	style(pane, {
-		position: 'fixed',
-		top: '20px',
-		left: '20px',
+		position: 'relative',
 		margin: 0,
 		border: '1px solid ' + Theme.a,
 		padding: 0,
@@ -454,35 +448,6 @@ function Timeliner(target) {
 		marginRight: '2px'
 	};
 
-	var pane_title = document.createElement('div');
-	style(pane_title, header_styles, {
-		borderBottom: '1px solid ' + Theme.b,
-		textAlign: 'center'
-	});
-
-	var title_bar = document.createElement('span');
-	pane_title.appendChild(title_bar);
-
-	title_bar.innerHTML = 'Timeliner ' + TIMELINER_VERSION;
-	pane_title.appendChild(title_bar);
-
-	var top_right_bar = document.createElement('div');
-	style(top_right_bar, header_styles, {
-		textAlign: 'right'
-	});
-
-	pane_title.appendChild(top_right_bar);
-
-	// resize minimize
-	// var resize_small = new IconButton(10, 'resize_small', 'minimize', dispatcher);
-	// top_right_bar.appendChild(resize_small.dom);
-
-	// resize full
-	var resize_full = new IconButton(10, 'resize_full', 'maximize', dispatcher);
-	style(resize_full.dom, button_styles, { marginRight: '2px' });
-	top_right_bar.appendChild(resize_full.dom);
-
-	var pane_status = document.createElement('div');
 
 	var footer_styles = {
 		position: 'absolute',
@@ -495,13 +460,7 @@ function Timeliner(target) {
 		fontSize: '11px'
 	};
 
-	style(pane_status, footer_styles, {
-		borderTop: '1px solid ' + Theme.b,
-	});
-
 	pane.appendChild(div);
-	pane.appendChild(pane_status);
-	pane.appendChild(pane_title);
 
 	var label_status = document.createElement('span');
 	label_status.textContent = 'hello!';
@@ -522,45 +481,6 @@ function Timeliner(target) {
 	style(bottom_right, footer_styles, {
 		textAlign: 'right'
 	});
-
-
-	// var button_save = document.createElement('button');
-	// style(button_save, button_styles);
-	// button_save.textContent = 'Save';
-	// button_save.onclick = function() {
-	// 	save();
-	// };
-
-	// var button_load = document.createElement('button');
-	// style(button_load, button_styles);
-	// button_load.textContent = 'Import';
-	// button_load.onclick = this.promptLoad;
-
-	// var button_open = document.createElement('button');
-	// style(button_open, button_styles);
-	// button_open.textContent = 'Open';
-	// button_open.onclick = this.promptOpen;
-
-
-	// bottom_right.appendChild(button_load);
-	// bottom_right.appendChild(button_save);
-	// bottom_right.appendChild(button_open);
-
-	pane_status.appendChild(label_status);
-	pane_status.appendChild(bottom_right);
-
-
-	/**/
-	// zoom in
-	var zoom_in = new IconButton(12, 'zoom_in', 'zoom in', dispatcher);
-	// zoom out
-	var zoom_out = new IconButton(12, 'zoom_out', 'zoom out', dispatcher);
-	// settings
-	var cog = new IconButton(12, 'cog', 'settings', dispatcher);
-
-	// bottom_right.appendChild(zoom_in.dom);
-	// bottom_right.appendChild(zoom_out.dom);
-	// bottom_right.appendChild(cog.dom);
 
 	// add layer
 	var plus = new IconButton(12, 'plus', 'New Layer', dispatcher);
@@ -592,49 +512,17 @@ function Timeliner(target) {
 	style(trash.dom, button_styles, { marginRight: '2px' });
 	bottom_right.appendChild(trash.dom);
 
-
-	// pane_status.appendChild(document.createTextNode(' | TODO <Dock Full | Dock Botton | Snap Window Edges | zoom in | zoom out | Settings | help>'));
-
 	/*
 			End DOM Stuff
 	*/
 
-	var ghostpane = document.createElement('div');
-	ghostpane.id = 'ghostpane';
-	style(ghostpane, {
-		background: '#999',
-		opacity: 0.2,
-		position: 'fixed',
-		margin: 0,
-		padding: 0,
-		zIndex: (Z_INDEX - 1),
-		// transition: 'all 0.25s ease-in-out',
-		transitionProperty: 'top, left, width, height, opacity',
-		transitionDuration: '0.25s',
-		transitionTimingFunction: 'ease-in-out'
-	});
-
-
 	//
 	// Handle DOM Views
 	//
-
-	// Shadow Root
-	var root = document.createElement('timeliner');
-	document.body.appendChild(root);
-	if (root.createShadowRoot) root = root.createShadowRoot();
-
-	window.r = root;
-
-	// var iframe = document.createElement('iframe');
-	// document.body.appendChild(iframe);
-	// root = iframe.contentDocument.body;
-
-	root.appendChild(pane);
-	root.appendChild(ghostpane);
+	container.appendChild(pane);
 
 	div.appendChild(layer_panel.dom);
-	div.appendChild(timeline.dom);
+	div.appendChild(timeLinePanel.dom);
 
 	var scrollbar = new ScrollBar(200, 10);
 	div.appendChild(scrollbar.dom);
@@ -644,7 +532,7 @@ function Timeliner(target) {
 		switch (type) {
 		case 'scrollto':
 			layer_panel.scrollTo(scrollTo);
-			timeline.scrollTo(scrollTo);
+			timeLinePanel.scrollTo(scrollTo);
 			break;
 	//		case 'pageup':
 	// 			scrollTop -= pageOffset;
@@ -759,8 +647,6 @@ function Timeliner(target) {
 
 		var domParent = pane.parentElement;
 		domParent.removeChild(pane);
-		domParent.removeChild(ghostpane);
-
 	};
 
 	this.setTarget = function(t) {
@@ -793,20 +679,12 @@ function Timeliner(target) {
 		return values;
 	}
 
+	// Expose API
 	this.getValues = getValueRanges;
-
-	/* Integrate pane into docking window */
-	var widget = new DockingWindow(pane, ghostpane)
-	widget.allowMove(false);
-	widget.resizes.do(resize)
-
-	pane_title.addEventListener('mouseover', function() {
-		widget.allowMove(true);
-	});
-
-	pane_title.addEventListener('mouseout', function() {
-		widget.allowMove(false);
-	});
+	this.getValueJson = () => {
+		return data.getJSONString();
+	}
+	this.resize = resize;
 }
 
 

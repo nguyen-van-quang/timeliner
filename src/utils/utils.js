@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { Tweens } from './util_tween.js'
 
 var STORAGE_PREFIX = 'timeliner-'

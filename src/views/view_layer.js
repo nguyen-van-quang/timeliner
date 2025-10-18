@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { Theme } from '../theme.js'
 import { UINumber } from '../ui/ui_number.js'
 import { Tweens } from '../utils/util_tween.js'
@@ -40,11 +41,18 @@ function LayerView(layer, dispatcher) {
 	var keyframe_button = document.createElement('button');
 	keyframe_button.innerHTML = '&#9672;'; // '&diams;' &#9671; 9679 9670 9672
 	keyframe_button.style.cssText = 'background: none; font-size: 12px; padding: 0px; font-family: monospace; float: right; width: 20px; height: ' + height + 'px; border-style:none; outline: none;'; //  border-style:inset;
-
 	keyframe_button.addEventListener('click', function(e) {
-		console.log('clicked:keyframing...', state.get('_value').value);
 		dispatcher.fire('keyframe', layer, state.get('_value').value);
 	});
+	dom.appendChild(keyframe_button);
+
+	var remove_layer_btn = document.createElement('button');
+	remove_layer_btn.innerHTML = '&minus;';
+	remove_layer_btn.style.cssText = 'color: ' + Theme.b + '; background: none; font-size: 16px; padding: 0px; font-family: monospace; float: right; width: 20px; height: ' + (LayoutConstants.LINE_HEIGHT - 5) + 'px; border-style:none; outline: none;';
+	remove_layer_btn.addEventListener('click', function(e) {
+		dispatcher.fire('layer.remove', layer);
+	});
+	dom.appendChild(remove_layer_btn);
 
 	/*
 	// Prev Keyframe
@@ -93,14 +101,6 @@ function LayerView(layer, dispatcher) {
 
 	}
 
-	// Solo
-	var solo_toggle = new ToggleButton('S');
-	dom.appendChild(solo_toggle.dom);
-
-	solo_toggle.onClick = function() {
-		dispatcher.fire('action:solo', layer, solo_toggle.pressed);
-	}
-
 	// Mute
 	var mute_toggle = new ToggleButton('M');
 	dom.appendChild(mute_toggle.dom);
@@ -121,7 +121,6 @@ function LayerView(layer, dispatcher) {
 	});
 
 	dom.appendChild(label);
-	dom.appendChild(keyframe_button);
 	dom.appendChild(number.dom);
 	dom.appendChild(dropdown);
 

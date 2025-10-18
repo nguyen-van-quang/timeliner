@@ -1,3 +1,4 @@
+/* eslint-disable */
 function handleDrag(element, ondown, onmove, onup, down_criteria) {
 	var pointer = null;
 	var bounds = element.getBoundingClientRect();

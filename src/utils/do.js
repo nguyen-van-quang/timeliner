@@ -1,3 +1,4 @@
+/* eslint-disable */
 /* Over simplistic Event Dispatcher */
 
 class Do {
