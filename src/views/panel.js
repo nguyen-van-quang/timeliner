@@ -564,7 +564,7 @@ class Diamond {
 
 	paint() {
 		this.path();
-		this.#ctx_wrap.fillStyle = this.#isOver ? 'yellow' : this.#frame._color;
+		this.#ctx_wrap.fillStyle(this.#isOver ? 'yellow' : Theme.c);
 		this.#ctx_wrap.fill().stroke();
 	}
 
