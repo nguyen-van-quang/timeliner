@@ -1,602 +1,592 @@
 /* eslint-disable */
-import { LayoutConstants }  from '../layout_constants.js'
-import { Theme }  from '../theme.js'
-import { utils }  from '../utils/utils.js'
-import { Tweens }  from '../utils/util_tween.js'
-import { handleDrag }  from '../utils/util_handle_drag.js'
-import { ScrollCanvas }  from './time_scroller.js'
-import { Canvas }  from '../ui/canvas.js'
+import { LayoutConstants } from '../layout_constants.js'
+import { Theme } from '../theme.js'
+import { utils } from '../utils/utils.js'
+import { Tweens } from '../utils/util_tween.js'
+import { handleDrag } from '../utils/util_handle_drag.js'
+import { ScrollCanvas } from './time_scroller.js'
+import { Canvas } from '../ui/canvas.js'
 
-const proxy_ctx  = utils.proxy_ctx;
+const { proxy_ctx, style } = utils;
 
-var
-	LINE_HEIGHT = LayoutConstants.LINE_HEIGHT,
+const LINE_HEIGHT = LayoutConstants.LINE_HEIGHT,
 	DIAMOND_SIZE = LayoutConstants.DIAMOND_SIZE,
 	TIME_SCROLLER_HEIGHT = 35,
 	MARKER_TRACK_HEIGHT = 25,
 	LEFT_PANE_WIDTH = LayoutConstants.LEFT_PANE_WIDTH,
-	time_scale = LayoutConstants.time_scale,
 	TOP = 10;
 
+class TimelinePanel {
+	#data;
+	#dispatcher;
+	#dpr;
+	#track_canvas;
+	#scroll_canvas;
+	#layers;
+	#scrollTop;
+	#scrollLeft;
+	#SCROLL_HEIGHT;
+	#dom;
+	#ctx;
+	#ctx_wrap;
+	#currentTime; // measured in seconds, technically it could be in frames or  have it in string format (0:00:00:1-60)
+	#LEFT_GUTTER = 20;
+	#i;
+	#x;
+	#y;
+	#il;
+	#j;
+	#needsRepaint = false;
+	#renderItems = [];
+	#time_scale = LayoutConstants.time_scale;
+	#tickMark1 = this.#time_scale / 60;
+	#tickMark2 = 2 * this.#tickMark1;
+	#tickMark3 = 10 * this.#tickMark1;
 
-var frame_start = 0; // this is the current scroll position.
-
-
-/*
- * This class contains the view for the right main section of timeliner
- */
-
-
-// TODO
-// dirty rendering
-// drag block
-// DON'T use time.update for everything
-
-var tickMark1;
-var tickMark2;
-var tickMark3;
-
-function time_scaled() {
-	/*
-	 * Subdivison LOD
-	 * time_scale refers to number of pixels per unit
-	 * Eg. 1 inch - 60s, 1 inch - 60fps, 1 inch - 6 mins
-	 */
-	var div = 60;
-
-	tickMark1 = time_scale / div;
-	tickMark2 = 2 * tickMark1;
-	tickMark3 = 10 * tickMark1;
-
-}
-
-time_scaled();
+	#over = null;
+	#mousedownItem = null;
+	#mousedown2 = false;
+	#mouseDownThenMove = false;
 
 
-/**************************/
-// Timeline Panel
-/**************************/
 
-function TimelinePanel(data, dispatcher) {
+	// this is the current scroll position.
+	#frame_start = 0;
 
-	var dpr = window.devicePixelRatio;
-	var track_canvas = document.createElement('canvas');
+	#canvasBounds;
+	#pointerdidMoved = false;
+	#pointer = null;
 
-	var scrollTop = 0, scrollLeft = 0, SCROLL_HEIGHT;
-	var layers = data.get('layers').value;
 
-	this.scrollTo = function(s, y) {
-		scrollTop = s * Math.max(layers.length * LINE_HEIGHT - SCROLL_HEIGHT, 0);
-		repaint();
-	};
+	constructor(data, dispatcher) {
+		this.#data = data;
+		this.#dispatcher = dispatcher;
+		this.#dpr = window.devicePixelRatio || 1;
 
-	this.resize = function() {
-		var h = (LayoutConstants.height - TIME_SCROLLER_HEIGHT);
-		dpr = window.devicePixelRatio;
-		track_canvas.width = LayoutConstants.width * dpr;
-		track_canvas.height = h * dpr;
-		track_canvas.style.width = LayoutConstants.width + 'px';
-		track_canvas.style.height = h + 'px';
-		SCROLL_HEIGHT = LayoutConstants.height - TIME_SCROLLER_HEIGHT;
-		scroll_canvas.setSize(LayoutConstants.width, TIME_SCROLLER_HEIGHT);
-	};
+		this.#layers = data.get('layers').value;
 
-	var div = document.createElement('div');
+		this.#track_canvas = document.createElement('canvas');
+		this.#track_canvas.addEventListener('dblclick', (e) => {
+			this.#canvasBounds = this.#track_canvas.getBoundingClientRect();
+			const mx = e.clientX - this.#canvasBounds.left;
+			const my = e.clientY - this.#canvasBounds.top;
+			const track = this.y_to_track(my);
+			// const s = this.x_to_time(mx);
+			this.#dispatcher.fire('keyframe', this.#layers[track], this.#currentTime);
+		});
+		this.#track_canvas.addEventListener('mouseout', () => {
+			this.#pointer = null;
+		});
+		style(this.#track_canvas, {
+			position: 'absolute',
+			top: TIME_SCROLLER_HEIGHT + 'px',
+			left: '0px'
+		});
 
-	var scroll_canvas = new Canvas(LayoutConstants.width, TIME_SCROLLER_HEIGHT);
-	// data.addListener('ui', repaint );
 
-	utils.style(track_canvas, {
-		position: 'absolute',
-		top: TIME_SCROLLER_HEIGHT + 'px',
-		left: '0px'
-	});
 
-	utils.style(scroll_canvas.dom, {
-		position: 'absolute',
-		top: '0px',
-		left: '10px'
-	});
+		this.#scroll_canvas = new Canvas(LayoutConstants.width, TIME_SCROLLER_HEIGHT);
+		style(this.#scroll_canvas.dom, {
+			position: 'absolute',
+			top: '0px',
+			left: '10px'
+		});
+		this.#scroll_canvas.uses(new ScrollCanvas(dispatcher, data));
 
-	scroll_canvas.uses(new ScrollCanvas(dispatcher, data));
+		this.#dom = document.createElement('div');
+		this.#dom.id = 'timeline-panel';
+		this.#dom.appendChild(this.#track_canvas);
+		this.#dom.appendChild(this.#scroll_canvas.dom);
+		this.#scroll_canvas.dom.id = 'scroll-canvas';
+		this.#track_canvas.id = 'track-canvas';
 
-	div.appendChild(track_canvas);
-	div.appendChild(scroll_canvas.dom);
-	scroll_canvas.dom.id = 'scroll-canvas'
-	track_canvas.id = 'track-canvas'
+		this.resize();
 
-	// this.dom = canvas;
-	this.dom = div;
-	this.dom.id = 'timeline-panel'
-	this.resize();
+		this.#ctx = this.#track_canvas.getContext('2d');
+		this.#ctx_wrap = proxy_ctx(this.#ctx, this.#dpr);
 
-	var ctx = track_canvas.getContext('2d');
-	var ctx_wrap = proxy_ctx(ctx);
+		this.#time_scale = LayoutConstants.time_scale;
 
-	var currentTime; // measured in seconds
-	// technically it could be in frames or  have it in string format (0:00:00:1-60)
+		// TODO: should be only listen on the TimelinePanel
+		document.addEventListener('mousemove', this.onMouseMove.bind(this));
 
-	var LEFT_GUTTER = 20;
-	var i, x, y, il, j;
+		this.repaint();
 
-	var needsRepaint = false;
-	var renderItems = [];
+		const handleDown = (e) => {
+			this.#mousedown2 = true;
+			this.#pointer = {
+				x: e.offsetx,
+				y: e.offsety
+			};
+			this.pointerEvents();
 
-	function EasingRect(x1, y1, x2, y2, frame, frame2, values, layer, j) {
-		var self = this;
-
-		this.path = function() {
-			ctx_wrap.beginPath()
-				.rect(x1, y1, x2-x1, y2-y1)
-				.closePath();
+			if (!this.#mousedownItem) {
+				this.#dispatcher.fire('time.update', this.x_to_time(e.offsetx));
+			}
 		};
 
-		this.paint = function() {
-			this.path();
-			ctx.fillStyle = frame._color;
-			ctx.fill();
+		const handleMove = (e) => {
+			if (this.#mousedown2) {
+				this.#pointer = {
+					x: e.offsetx,
+					y: e.offsety
+				};
+				this.pointerEvents();
+				if (!this.#mousedownItem) {
+					this.#dispatcher.fire('time.update', this.x_to_time(e.offsetx));
+				}
+			}
 		};
 
-		this.mouseover = function() {
-			track_canvas.style.cursor = 'pointer'; // pointer move ew-resize
+		const handleUp = (e) => {
+			this.#mousedown2 = false;
+			if (this.#mousedownItem) {
+				this.#mouseDownThenMove = true;
+				if (this.#mousedownItem.mousedrag) {
+					this.#mousedownItem.mousedrag(e);
+				}
+			} else {
+				this.#dispatcher.fire('time.update', this.x_to_time(e.offsetx));
+			}
 		};
 
-		this.mouseout = function() {
-			track_canvas.style.cursor = 'default';
-		};
+		handleDrag(this.#track_canvas, handleDown, handleMove, handleUp);
 
-		this.mousedrag = function(e) {
-			var t1 = x_to_time(x1 + e.dx);
-			t1 = Math.max(0, t1);
-			// TODO limit moving to neighbours
-			frame.time = t1;
-
-			var t2 = x_to_time(x2 + e.dx);
-			t2 = Math.max(0, t2);
-			frame2.time = t2;
-
-			// dispatcher.fire('time.update', t1);
-		};
+		// Start animation loop
+		this.startAnimationLoop();
 	}
 
-	function Diamond(frame, y) {
-		var x, y2;
-
-		x = time_to_x(frame.time);
-		y2 = y + LINE_HEIGHT * 0.5  - DIAMOND_SIZE / 2;
-
-		var self = this;
-
-		var isOver = false;
-
-		this.path = function(ctx_wrap) {
-			ctx_wrap
-				.beginPath()
-				.moveTo(x, y2)
-				.lineTo(x + DIAMOND_SIZE / 2, y2 + DIAMOND_SIZE / 2)
-				.lineTo(x, y2 + DIAMOND_SIZE)
-				.lineTo(x - DIAMOND_SIZE / 2, y2 + DIAMOND_SIZE / 2)
-				.closePath();
+	startAnimationLoop() {
+		const animate = () => {
+			this._paint();
+			requestAnimationFrame(animate);
 		};
-
-		this.paint = function(ctx_wrap) {
-			self.path(ctx_wrap);
-			if (!isOver)
-				ctx_wrap.fillStyle(Theme.c);
-			else
-				ctx_wrap.fillStyle('yellow'); // Theme.d
-
-			ctx_wrap.fill()
-				.stroke();
-		};
-
-		this.mouseover = function() {
-			isOver = true;
-			track_canvas.style.cursor = 'move'; // pointer move ew-resize
-			self.paint(ctx_wrap);
-		};
-
-		this.mouseout = function() {
-			isOver = false;
-			track_canvas.style.cursor = 'default';
-			self.paint(ctx_wrap);
-		};
-
-		this.mousedrag = function(e) {
-			var t = x_to_time(x + e.dx);
-			t = Math.max(0, t);
-			// TODO limit moving to neighbours
-			frame.time = t;
-			dispatcher.fire('time.update', t);
-			// console.log('frame', frame);
-			// console.log(s, format_friendly_seconds(s), this);
-		};
-
+		animate();
 	}
 
-	function repaint() {
-		needsRepaint = true;
+	scrollTo(top, left) {
+		this.#scrollTop = top * Math.max(this.#layers.length * LINE_HEIGHT - this.#SCROLL_HEIGHT, 0);
+		this.repaint();
 	}
 
+	resize() {
+		const h = (LayoutConstants.height - TIME_SCROLLER_HEIGHT);
+		this.#dpr = window.devicePixelRatio;
+		this.#track_canvas.width = LayoutConstants.width * this.#dpr;
+		this.#track_canvas.height = h * this.#dpr;
+		this.#track_canvas.style.width = LayoutConstants.width + 'px';
+		this.#track_canvas.style.height = h + 'px';
+		this.#SCROLL_HEIGHT = LayoutConstants.height - TIME_SCROLLER_HEIGHT;
+		this.#scroll_canvas.setSize(LayoutConstants.width, TIME_SCROLLER_HEIGHT);
+	}
 
-	function drawLayerContents() {
-		renderItems = [];
+	repaint() {
+		this.#needsRepaint = true;
+	}
+
+	paint() {
+		this._paint();
+	}
+
+	drawLayerContents() {
+		this.#renderItems = [];
 		// horizontal Layer lines
-		for (i = 0, il = layers.length; i <= il; i++) {
-			ctx.strokeStyle = Theme.b;
-			ctx.beginPath();
-			y = i * LINE_HEIGHT;
-			y = ~~y - 0.5;
+		for (let i = 0, il = this.#layers.length; i <= il; i++) {
+			this.#ctx.strokeStyle = Theme.b;
+			this.#ctx.beginPath();
+			this.#y = this.#i * LINE_HEIGHT;
+			this.#y = ~~this.#y - 0.5;
 
-			ctx_wrap
-				.moveTo(0, y)
-				.lineTo(LayoutConstants.width, y)
+			this.#ctx_wrap
+				.moveTo(0, this.#y)
+				.lineTo(LayoutConstants.width, this.#y)
 				.stroke();
 		}
 
-
-		var frame, frame2, j;
+		let frame, frame2, j;
 
 		// Draw Easing Rects
-		for (i = 0; i < il; i++) {
+		for (let i = 0, il = this.#layers.length; i < il; i++) {
 			// check for keyframes
-			var layer = layers[i];
-			var values = layer.values;
+			let layer = this.#layers[i];
+			let values = layer.values;
 
-			y = i * LINE_HEIGHT;
+			let y = i * LINE_HEIGHT;
 
-			for (j = 0; j < values.length - 1; j++) {
+			for (let j = 0; j < values.length - 1; j++) {
 				frame = values[j];
 				frame2 = values[j + 1];
 
 				// Draw Tween Rect
-				var x = time_to_x(frame.time);
-				var x2 = time_to_x(frame2.time);
+				let x = this.time_to_x(frame.time);
+				let x2 = this.time_to_x(frame2.time);
 
 				if (!frame.tween || frame.tween == 'none') continue;
 
-				var y1 = y + 2;
-				var y2 = y + LINE_HEIGHT - 2;
+				let y1 = y + 2;
+				let y2 = y + LINE_HEIGHT - 2;
 
-				renderItems.push(new EasingRect(x, y1, x2, y2, frame, frame2));
-
-				// // draw easing graph
-				// var color = parseInt(frame._color.substring(1,7), 16);
-				// color = 0xffffff ^ color;
-				// color = color.toString(16);           // convert to hex
-				// color = '#' + ('000000' + color).slice(-6);
-
-				// ctx.strokeStyle = color;
-				// var x3;
-				// ctx.beginPath();
-				// ctx.moveTo(x, y2);
-				// var dy = y1 - y2;
-				// var dx = x2 - x;
-
-				// for (x3=x; x3 < x2; x3++) {
-				// 	ctx.lineTo(x3, y2 + Tweens[frame.tween]((x3 - x)/dx) * dy);
-				// }
-				// ctx.stroke();
+				this.#renderItems.push(new EasingRect(this, this.#ctx, this.#ctx_wrap, this.#track_canvas, x, y1, x2, y2, frame, frame2));
 			}
 
-			for (j = 0; j < values.length; j++) {
-				// Dimonds
+			for (let j = 0; j < values.length; j++) {
+				// Diamonds
 				frame = values[j];
-				renderItems.push(new Diamond(frame, y));
+				console.log('Creating diamond for frame:', frame, 'at y:', y);
+				this.#renderItems.push(new Diamond(this.#dispatcher, this, this.#ctx_wrap, this.#track_canvas, frame, y));
 			}
 		}
 
 		// render items
-		var item;
-		for (i = 0, il = renderItems.length; i < il; i++) {
-			item = renderItems[i];
-			item.paint(ctx_wrap);
+		console.log('Rendering', this.#renderItems.length, 'items');
+		let item;
+		for (let i = 0, il = this.#renderItems.length; i < il; i++) {
+			item = this.#renderItems[i];
+			// item.paint(this.#ctx_wrap);
+			item.paint();
 		}
 	}
 
-	function setTimeScale() {
+	time_scaled() {
+		/*
+			* Subdivison LOD
+			* time_scale refers to number of pixels per unit
+			* Eg. 1 inch - 60s, 1 inch - 60fps, 1 inch - 6 mins
+		*/
+		let div = 60;
+		this.#tickMark1 = this.#time_scale / div;
+		this.#tickMark2 = 2 * this.#tickMark1;
+		this.#tickMark3 = 10 * this.#tickMark1;
+	}
 
-		var v = data.get('ui:timeScale').value;
-		if (time_scale !== v) {
-			time_scale = v;
-			time_scaled();
+	setTimeScale() {
+		let v = this.#data.get('ui:timeScale').value;
+		if (this.#time_scale !== v) {
+			this.#time_scale = v;
+			this.time_scaled();
 		}
 	}
 
-	var over = null;
-	var mousedownItem = null;
-
-	function check() {
-		var item;
-		var last_over = over;
-		// over = [];
-		over = null;
-		for (i = renderItems.length; i-- > 0;) {
-			item = renderItems[i];
-			item.path(ctx_wrap);
-
-			if (ctx.isPointInPath(pointer.x * dpr, pointer.y * dpr)) {
-				// over.push(item);
-				over = item;
+	check() {
+		let item;
+		let last_over = this.#over;
+		this.#over = null;
+		for (let i = this.#renderItems.length; i-- > 0;) {
+			item = this.#renderItems[i];
+			item.path(this.#ctx_wrap);
+			if (this.#ctx.isPointInPath(this.#pointer.x * this.#dpr, this.#pointer.y * this.#dpr)) {
+				this.#over = item;
 				break;
 			}
 		}
-
-		// clear old mousein
-		if (last_over && last_over != over) {
+		if (last_over && last_over != this.#over) {
 			item = last_over;
 			if (item.mouseout) item.mouseout();
 		}
-
-		if (over) {
-			item = over;
+		if (this.#over) {
+			item = this.#over;
 			if (item.mouseover) item.mouseover();
-
-			if (mousedown2) {
-				mousedownItem = item;
+			if (this.#mousedown2) {
+				this.#mousedownItem = item;
 			}
 		}
-
-
-
-		// console.log(pointer)
 	}
 
-	function pointerEvents() {
-		if (!pointer) return;
-
-		ctx_wrap
+	pointerEvents() {
+		if (!this.#pointer) return;
+		this.#ctx_wrap
 			.save()
-			.scale(dpr, dpr)
+			.scale(this.#dpr, this.#dpr)
 			.translate(0, MARKER_TRACK_HEIGHT + 15)
 			.beginPath()
-			.rect(0, 0, LayoutConstants.width, SCROLL_HEIGHT)
-			.translate(-scrollLeft, -scrollTop)
+			.rect(0, 0, LayoutConstants.width, this.#SCROLL_HEIGHT)
+			.translate(-this.#scrollLeft, -this.#scrollTop)
 			.clip()
-			.run(check)
+			.run(this.check.bind(this))
 			.restore();
 	}
 
-	function _paint() {
-		if (!needsRepaint) {
-			pointerEvents();
+	_paint() {
+		if (!this.#needsRepaint) {
+			this.pointerEvents();
 			return;
 		}
+		this.#scroll_canvas.repaint();
 
-		scroll_canvas.repaint();
+		this.setTimeScale();
 
-		setTimeScale();
-
-		currentTime = data.get('ui:currentTime').value;
-		frame_start =  data.get('ui:scrollTime').value;
+		this.#currentTime = this.#data.get('ui:currentTime').value;
+		this.#frame_start = this.#data.get('ui:scrollTime').value;
 
 		/**************************/
 		// background
+		this.#ctx.fillStyle = Theme.a;
+		this.#ctx.clearRect(0, 0, this.#track_canvas.width, this.#track_canvas.height);
+		this.#ctx.save();
+		this.#ctx.scale(this.#dpr, this.#dpr);
 
-		ctx.fillStyle = Theme.a;
-		ctx.clearRect(0, 0, track_canvas.width, track_canvas.height);
-		ctx.save();
-		ctx.scale(dpr, dpr);
+		this.#ctx.lineWidth = 1; // .5, 1, 2
 
-		//
+		const width = LayoutConstants.width;
+		const height = LayoutConstants.height;
 
-		ctx.lineWidth = 1; // .5, 1, 2
-
-		var width = LayoutConstants.width;
-		var height = LayoutConstants.height;
-
-		var units = time_scale / tickMark1;
-		var offsetUnits = (frame_start * time_scale) % units;
-
-		var count = (width - LEFT_GUTTER + offsetUnits) / units;
-
-		// console.log('time_scale', time_scale, 'tickMark1', tickMark1, 'units', units, 'offsetUnits', offsetUnits, frame_start);
-
-		// time_scale = pixels to 1 second (40)
-		// tickMark1 = marks per second (marks / s)
-		// units = pixels to every mark (40)
+		let units = this.#time_scale / this.#tickMark1;
+		const offsetUnits = (this.#frame_start * this.#time_scale) % units;
+		let count = (width - this.#LEFT_GUTTER + offsetUnits) / units;
 
 		// labels only
-		for (i = 0; i < count; i++) {
-			x = i * units + LEFT_GUTTER - offsetUnits;
+		for (let i = 0; i < count; i++) {
+			this.#x = i * units + this.#LEFT_GUTTER - offsetUnits;
 
 			// vertical lines
-			ctx.strokeStyle = Theme.b;
-			ctx.beginPath();
-			ctx.moveTo(x, 0);
-			ctx.lineTo(x, height);
-			ctx.stroke();
+			this.#ctx.strokeStyle = Theme.b;
+			this.#ctx.beginPath();
+			this.#ctx.moveTo(this.#x, 0);
+			this.#ctx.lineTo(this.#x, height);
+			this.#ctx.stroke();
 
-			ctx.fillStyle = Theme.d;
-			ctx.textAlign = 'center';
+			this.#ctx.fillStyle = Theme.d;
+			this.#ctx.textAlign = 'center';
 
-			var t = (i * units - offsetUnits) / time_scale + frame_start;
+			let t = (i * units - offsetUnits) / this.#time_scale + this.#frame_start;
 			t = utils.format_friendly_seconds(t);
-			ctx.fillText(t, x, 38);
+			this.#ctx.fillText(t, this.#x, 38);
 		}
 
-		units = time_scale / tickMark2;
-		count = (width - LEFT_GUTTER + offsetUnits) / units;
+		units = this.#time_scale / this.#tickMark2;
+		count = (width - this.#LEFT_GUTTER + offsetUnits) / units;
 
 		// marker lines - main
-		for (i = 0; i < count; i++) {
-			ctx.strokeStyle = Theme.c;
-			ctx.beginPath();
-			x = i * units + LEFT_GUTTER - offsetUnits;
-			ctx.moveTo(x, MARKER_TRACK_HEIGHT - 0);
-			ctx.lineTo(x, MARKER_TRACK_HEIGHT - 16);
-			ctx.stroke();
+		for (let i = 0; i < count; i++) {
+			this.#ctx.strokeStyle = Theme.c;
+			this.#ctx.beginPath();
+			this.#x = i * units + this.#LEFT_GUTTER - offsetUnits;
+			this.#ctx.moveTo(this.#x, MARKER_TRACK_HEIGHT - 0);
+			this.#ctx.lineTo(this.#x, MARKER_TRACK_HEIGHT - 16);
+			this.#ctx.stroke();
 		}
 
-		var mul = tickMark3 / tickMark2;
-		units = time_scale / tickMark3;
-		count = (width - LEFT_GUTTER + offsetUnits) / units;
+		const mul = this.#tickMark3 / this.#tickMark2;
+		units = this.#time_scale / this.#tickMark3;
+		count = (width - this.#LEFT_GUTTER + offsetUnits) / units;
 
 		// small ticks
-		for (i = 0; i < count; i++) {
+		for (let i = 0; i < count; i++) {
 			if (i % mul === 0) continue;
-			ctx.strokeStyle = Theme.c;
-			ctx.beginPath();
-			x = i * units + LEFT_GUTTER - offsetUnits;
-			ctx.moveTo(x, MARKER_TRACK_HEIGHT - 0);
-			ctx.lineTo(x, MARKER_TRACK_HEIGHT - 10);
-			ctx.stroke();
+			this.#ctx.strokeStyle = Theme.c;
+			this.#ctx.beginPath();
+			this.#x = i * units + this.#LEFT_GUTTER - offsetUnits;
+			this.#ctx.moveTo(this.#x, MARKER_TRACK_HEIGHT - 0);
+			this.#ctx.lineTo(this.#x, MARKER_TRACK_HEIGHT - 10);
+			this.#ctx.stroke();
 		}
 
 		// Encapsulate a scroll rect for the layers
-		ctx_wrap
+		this.#ctx_wrap
 			.save()
-			.translate(0, MARKER_TRACK_HEIGHT + 15)
+			.translate(0, MARKER_TRACK_HEIGHT + 51)
 			.beginPath()
-			.rect(0, 0, LayoutConstants.width, SCROLL_HEIGHT)
-			.translate(-scrollLeft, -scrollTop)
+			.rect(0, 0, LayoutConstants.width, this.#SCROLL_HEIGHT)
+			.translate(-this.#scrollLeft, -this.#scrollTop)
 			.clip()
-			.run(drawLayerContents)
+			.run(this.drawLayerContents.bind(this))
 			.restore();
 
 		// Current Marker / Cursor
-		ctx.strokeStyle = 'red'; // Theme.c
-		x = (currentTime - frame_start) * time_scale + LEFT_GUTTER;
+		this.#ctx.strokeStyle = 'red'; // Theme.c
+		this.#x = (this.#currentTime - this.#frame_start) * this.#time_scale + this.#LEFT_GUTTER;
 
-		var txt = utils.format_friendly_seconds(currentTime);
-		var textWidth = ctx.measureText(txt).width;
+		const txt = utils.format_friendly_seconds(this.#currentTime);
+		const textWidth = this.#ctx.measureText(txt).width;
 
-		var base_line = MARKER_TRACK_HEIGHT - 5, half_rect = textWidth / 2 + 4;
+		const base_line = MARKER_TRACK_HEIGHT - 5;
+		const half_rect = textWidth / 2 + 4;
 
-		ctx.beginPath();
-		ctx.moveTo(x, base_line);
-		ctx.lineTo(x, height);
-		ctx.stroke();
+		this.#ctx.beginPath();
+		this.#ctx.moveTo(this.#x, base_line);
+		this.#ctx.lineTo(this.#x, height);
+		this.#ctx.stroke();
 
-		ctx.fillStyle = 'red'; // black
-		ctx.textAlign = 'center';
-		ctx.beginPath();
-		ctx.moveTo(x, base_line + 5);
-		ctx.lineTo(x + 5, base_line);
-		ctx.lineTo(x + half_rect, base_line);
-		ctx.lineTo(x + half_rect, base_line - 14);
-		ctx.lineTo(x - half_rect, base_line - 14);
-		ctx.lineTo(x - half_rect, base_line);
-		ctx.lineTo(x - 5, base_line);
-		ctx.closePath();
-		ctx.fill();
+		this.#ctx.fillStyle = 'red'; // black
+		this.#ctx.textAlign = 'center';
+		this.#ctx.beginPath();
+		this.#ctx.moveTo(this.#x, base_line + 5);
+		this.#ctx.lineTo(this.#x + 5, base_line);
+		this.#ctx.lineTo(this.#x + half_rect, base_line);
+		this.#ctx.lineTo(this.#x + half_rect, base_line - 14);
+		this.#ctx.lineTo(this.#x - half_rect, base_line - 14);
+		this.#ctx.lineTo(this.#x - half_rect, base_line);
+		this.#ctx.lineTo(this.#x - 5, base_line);
+		this.#ctx.closePath();
+		this.#ctx.fill();
 
-		ctx.fillStyle = 'white';
-		ctx.fillText(txt, x, base_line - 4);
+		this.#ctx.fillStyle = 'white';
+		this.#ctx.fillText(txt, this.#x, base_line - 4);
+		this.#ctx.restore();
 
-		ctx.restore();
-
-		needsRepaint = false;
-		// pointerEvents();
-
+		this.#needsRepaint = false;
 	}
 
-	function y_to_track(y) {
+	y_to_track(y) {
 		if (y - (MARKER_TRACK_HEIGHT + 15) < 0) return -1;
-		return (y - (MARKER_TRACK_HEIGHT + 15) + scrollTop) / LINE_HEIGHT | 0;
+		return (y - (MARKER_TRACK_HEIGHT + 15) + this.#scrollTop) / LINE_HEIGHT | 0;
 	}
 
-
-	function x_to_time(x) {
-		var units = time_scale / tickMark3;
-
-		// return frame_start + (x - LEFT_GUTTER) / time_scale;
-
-		return frame_start + ((x - LEFT_GUTTER) / units | 0) / tickMark3;
+	x_to_time(x) {
+		const units = this.#time_scale / this.#tickMark3;
+		return this.#frame_start + ((x - this.#LEFT_GUTTER) / units | 0) / this.#tickMark3;
 	}
 
-	function time_to_x(s) {
-		var ds = s - frame_start;
-		ds *= time_scale;
-		ds += LEFT_GUTTER;
-
+	time_to_x(s) {
+		let ds = s - this.#frame_start;
+		ds *= this.#time_scale;
+		ds += this.#LEFT_GUTTER;
 		return ds;
 	}
 
-	var me = this;
-	this.repaint = repaint;
-	this._paint = _paint;
-
-	repaint();
-
-	var mousedown = false, selection = false;
-
-	var dragObject;
-	var canvasBounds;
-
-	document.addEventListener('mousemove', onMouseMove);
-
-	track_canvas.addEventListener('dblclick', function(e) {
-		canvasBounds = track_canvas.getBoundingClientRect();
-		var mx = e.clientX - canvasBounds.left , my = e.clientY - canvasBounds.top;
-
-
-		var track = y_to_track(my);
-		var s = x_to_time(mx);
-
-
-		dispatcher.fire('keyframe', layers[track], currentTime);
-
-	});
-
-	function onMouseMove(e) {
-		canvasBounds = track_canvas.getBoundingClientRect();
-		var mx = e.clientX - canvasBounds.left , my = e.clientY - canvasBounds.top;
-		onPointerMove(mx, my);
+	onPointerMove(x, y) {
+		if (this.#mousedownItem) return;
+		this.#pointerdidMoved = true;
+		this.#pointer = { x, y };
 	}
 
-	var pointerdidMoved = false;
-	var pointer = null;
-
-	function onPointerMove(x, y) {
-		if (mousedownItem) return;
-		pointerdidMoved = true;
-		pointer = { x: x, y: y };
+	onMouseMove(e) {
+		this.#canvasBounds = this.#track_canvas.getBoundingClientRect();
+		const mx = e.clientX - this.#canvasBounds.left;
+		const my = e.clientY - this.#canvasBounds.top;
+		this.onPointerMove(mx, my);
 	}
 
-	track_canvas.addEventListener('mouseout', function() {
-		pointer = null;
-	});
-
-	var mousedown2 = false, mouseDownThenMove = false;
-	handleDrag(track_canvas, function down(e) {
-		mousedown2 = true;
-		pointer = {
-			x: e.offsetx,
-			y: e.offsety
-		};
-		pointerEvents();
-
-		if (!mousedownItem) dispatcher.fire('time.update', x_to_time(e.offsetx));
-		// Hit criteria
-	}, function move(e) {
-		mousedown2 = false;
-		if (mousedownItem) {
-			mouseDownThenMove = true;
-			if (mousedownItem.mousedrag) {
-				mousedownItem.mousedrag(e);
-			}
-		} else {
-			dispatcher.fire('time.update', x_to_time(e.offsetx));
-		}
-	}, function up(e) {
-		if (mouseDownThenMove) {
-			dispatcher.fire('keyframe.move');
-		}
-		else {
-			dispatcher.fire('time.update', x_to_time(e.offsetx));
-		}
-		mousedown2 = false;
-		mousedownItem = null;
-		mouseDownThenMove = false;
+	setState(state) {
+		this.#layers = state.value;
+		this.repaint();
 	}
-	);
 
-	this.setState = function(state) {
-		layers = state.value;
-		repaint();
-	};
-
+	get dom() {
+		return this.#dom;
+	}
 }
 
-export { TimelinePanel }
+class EasingRect {
+	#timeliner;
+	#ctx;
+	#ctx_wrap;
+	#track_canvas;
+	#x1;
+	#y1;
+	#x2;
+	#y2;
+	#frame;
+	#frame2;
+
+	constructor(timeliner, ctx, ctx_wrap, track_canvas, x1, y1, x2, y2, frame, frame2) {
+		this.#timeliner = timeliner;
+		this.#ctx = ctx;
+		this.#ctx_wrap = ctx_wrap;
+		this.#track_canvas = track_canvas;
+		this.#x1 = x1;
+		this.#y1 = y1;
+		this.#x2 = x2;
+		this.#y2 = y2;
+		this.#frame = frame;
+		this.#frame2 = frame2;
+	}
+
+	path() {
+		this.#ctx_wrap.beginPath()
+			.rect(this.#x1, this.#y1, this.#x2 - this.#x1, this.#y2 - this.#y1)
+			.closePath();
+	}
+
+	paint() {
+		this.path();
+		this.#ctx.fillStyle = this.#frame._color;
+		this.#ctx.fill();
+	}
+
+	mouseover() {
+		this.#track_canvas.style.cursor = 'pointer'; // pointer move ew-resize
+	}
+
+	mouseout() {
+		this.#track_canvas.style.cursor = 'default';
+	}
+
+	x_to_time(x) {
+		return this.#timeliner.x_to_time(x);
+	}
+
+	mousedrag(e) {
+		let t1 = this.x_to_time(this.#x1 + e.dx);
+		t1 = Math.max(0, t1);
+		// TODO limit moving to neighbours
+		this.#frame.time = t1;
+
+		let t2 = this.x_to_time(this.#x2 + e.dx);
+		t2 = Math.max(0, t2);
+		this.#frame2.time = t2;
+	}
+}
+
+class Diamond {
+	#dispatcher;
+	#timeliner;
+	#ctx_wrap;
+	#track_canvas;
+	#isOver = false;
+	#x;
+	#y2;
+	#frame;
+
+	constructor(dispatcher, timeliner, ctx_wrap, track_canvas, frame, y) {
+		this.#timeliner = timeliner;
+		this.#dispatcher = dispatcher;
+		this.#ctx_wrap = ctx_wrap;
+		this.#track_canvas = track_canvas;
+		this.#frame = frame;
+		this.#x = this.time_to_x(frame.time);
+		this.#y2 = y + LINE_HEIGHT * 0.5 - DIAMOND_SIZE / 2;
+	}
+
+	time_to_x(s) {
+		return this.#timeliner.time_to_x(s);
+	}
+
+	path() {
+		this.#ctx_wrap
+			.beginPath()
+			.moveTo(this.#x, this.#y2)
+			.lineTo(this.#x + DIAMOND_SIZE / 2, this.#y2 + DIAMOND_SIZE / 2)
+			.lineTo(this.#x, this.#y2 + DIAMOND_SIZE)
+			.lineTo(this.#x - DIAMOND_SIZE / 2, this.#y2 + DIAMOND_SIZE / 2)
+			.closePath();
+	}
+
+	paint() {
+		this.path();
+		this.#ctx_wrap.fillStyle = this.#isOver ? 'yellow' : this.#frame._color;
+		this.#ctx_wrap.fill().stroke();
+	}
+
+	mouseover() {
+		this.#isOver = true;
+		this.#track_canvas.style.cursor = 'move'; // pointer move ew-resize
+		this.paint();
+	}
+
+	mouseout() {
+		this.#isOver = false;
+		this.#track_canvas.style.cursor = 'default';
+		this.paint();
+	}
+
+	mousedrag(e) {
+		let t = this.#timeliner.x_to_time(this.#x + e.dx);
+		t = Math.max(0, t);
+		// TODO limit moving to neighbours
+		this.#frame.time = t;
+		this.#dispatcher.fire('time.update', t);
+	}
+}
+
+export { TimelinePanel };

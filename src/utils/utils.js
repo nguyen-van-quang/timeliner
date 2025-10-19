@@ -38,7 +38,7 @@ function saveToFile(string, filename) {
 
 	fakeClick(a);
 
-	setTimeout(function() {
+	setTimeout(function () {
 		// cleanup and revoke
 		window.URL.revokeObjectURL(url);
 		document.body.removeChild(a);
@@ -65,7 +65,7 @@ function handleFileSelect(evt) {
 	var reader = new FileReader();
 
 	// Closure to capture the file information.
-	reader.onload = function(e) {
+	reader.onload = function (e) {
 		var data = e.target.result;
 		openCallback(data);
 	};
@@ -134,7 +134,7 @@ function findTimeinLayer(layer, time) {
 
 	// TODO optimize by checking time / binary search
 
-	for (i=0, il=values.length; i<il; i++) {
+	for (i = 0, il = values.length; i < il; i++) {
 		var value = values[i];
 		if (value.time === time) {
 			return {
@@ -175,7 +175,7 @@ function timeAtLayer(layer, t) {
 		};
 	}
 
-	for (i=0; i<il; i++) {
+	for (i = 0; i < il; i++) {
 		prev_entry = entry;
 		entry = values[i];
 
@@ -246,7 +246,7 @@ function proxy_ctx(ctx) {
 	var wrapper = {};
 
 	function proxy_function(c) {
-		return function() {
+		return function () {
 			// Warning: this doesn't return value of function call
 			ctx[c].apply(ctx, arguments);
 			return wrapper;
@@ -254,13 +254,13 @@ function proxy_ctx(ctx) {
 	}
 
 	function proxy_property(c) {
-		return function(v) {
+		return function (v) {
 			ctx[c] = v;
 			return wrapper;
 		};
 	}
 
-	wrapper.run = function(args) {
+	wrapper.run = function (args) {
 		args(wrapper);
 		return wrapper;
 	};
@@ -270,26 +270,88 @@ function proxy_ctx(ctx) {
 		// console.log(c, typeof(ctx[c]), ctx.hasOwnProperty(c));
 		// string, number, boolean, function, object
 
-		var type = typeof(ctx[c]);
+		var type = typeof (ctx[c]);
 		switch (type) {
-		case 'object':
-			break;
-		case 'function':
-			wrapper[c] = proxy_function(c);
-			break;
-		default:
-			wrapper[c] = proxy_property(c);
-			break;
+			case 'object':
+				break;
+			case 'function':
+				wrapper[c] = proxy_function(c);
+				break;
+			default:
+				wrapper[c] = proxy_property(c);
+				break;
 		}
 	}
 
 	return wrapper;
 }
 
+// css utils
+
+// CSS Class utilities for pseudo-classes support
+function addClass(element, className) {
+	if (element.classList) {
+		element.classList.add(className);
+	} else {
+		// Fallback for older browsers
+		element.className += ' ' + className;
+	}
+}
+
+function removeClass(element, className) {
+	if (element.classList) {
+		element.classList.remove(className);
+	} else {
+		// Fallback for older browsers
+		element.className = element.className.replace(new RegExp('\\b' + className + '\\b', 'g'), '');
+	}
+}
+
+function toggleClass(element, className) {
+	if (element.classList) {
+		element.classList.toggle(className);
+	} else {
+		// Fallback for older browsers
+		if (element.className.indexOf(className) >= 0) {
+			removeClass(element, className);
+		} else {
+			addClass(element, className);
+		}
+	}
+}
+
+function hasClass(element, className) {
+	if (element.classList) {
+		return element.classList.contains(className);
+	} else {
+		// Fallback for older browsers
+		return element.className.indexOf(className) >= 0;
+	}
+}
+
+// Inject CSS styles dynamically
+function injectCSS(css) {
+	const style = document.createElement('style');
+	style.type = 'text/css';
+	if (style.styleSheet) {
+		// IE
+		style.styleSheet.cssText = css;
+	} else {
+		style.appendChild(document.createTextNode(css));
+	}
+	document.head.appendChild(style);
+	return style;
+}
+
 var utils = {
 	STORAGE_PREFIX,
 	firstDefined,
 	style,
+	addClass,
+	removeClass,
+	toggleClass,
+	hasClass,
+	injectCSS,
 	saveToFile,
 	openAs,
 	format_friendly_seconds,

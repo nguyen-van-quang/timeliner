@@ -11,6 +11,7 @@ import { utils } from './utils/utils.js'
 import { LayerCabinet } from './views/layer_cabinet.js'
 import { TimelinePanel } from './views/panel.js'
 import { IconButton } from './ui/icon_button.js'
+import './styles/css-loader.js' // Auto-load CSS with pseudo-classes
 var style = utils.style
 var saveToFile = utils.saveToFile
 var openAs = utils.openAs
@@ -52,18 +53,18 @@ function Timeliner(target, container, options) {
 	var timeLinePanel = new TimelinePanel(data, dispatcher);
 	var layer_panel = new LayerCabinet(data, dispatcher);
 
-	setTimeout(function() {
+	setTimeout(function () {
 		// hack!
 		undo_manager.save(new UndoState(data, 'Loaded'), true);
 	});
 
-	dispatcher.on('keyframe', function(layer, value) {
+	dispatcher.on('keyframe', function (layer, value) {
 		var index = layers.indexOf(layer);
 
 		var t = data.get('ui:currentTime').value;
 		var v = utils.findTimeinLayer(layer, t);
 
-		if (typeof(v) === 'number') {
+		if (typeof (v) === 'number') {
 			layer.values.splice(v, 0, {
 				time: t,
 				value: value,
@@ -82,7 +83,7 @@ function Timeliner(target, container, options) {
 
 	});
 
-	dispatcher.on('layer.remove', function(layer) {
+	dispatcher.on('layer.remove', function (layer) {
 		var index = layers.indexOf(layer);
 		if (index > -1) {
 			layers.splice(index, 1);
@@ -92,17 +93,17 @@ function Timeliner(target, container, options) {
 		}
 	});
 
-	dispatcher.on('keyframe.move', function(layer, value) {
+	dispatcher.on('keyframe.move', function (layer, value) {
 		undo_manager.save(new UndoState(data, 'Move Keyframe'));
 	});
 
-	dispatcher.on('value.change', function(layer, value, dont_save) {
+	dispatcher.on('value.change', function (layer, value, dont_save) {
 		if (layer._mute) return;
 
 		var t = data.get('ui:currentTime').value;
 		var v = utils.findTimeinLayer(layer, t);
 
-		if (typeof(v) === 'number') {
+		if (typeof (v) === 'number') {
 			layer.values.splice(v, 0, {
 				time: t,
 				value: value,
@@ -117,7 +118,7 @@ function Timeliner(target, container, options) {
 		repaintAll();
 	});
 
-	dispatcher.on('action:mute', function(layer, mute) {
+	dispatcher.on('action:mute', function (layer, mute) {
 		layer._mute = mute;
 
 		// When a track is mute, playback does not play
@@ -131,11 +132,11 @@ function Timeliner(target, container, options) {
 		// no changes to tween will be made etc.
 	});
 
-	dispatcher.on('ease', function(layer, ease_type) {
+	dispatcher.on('ease', function (layer, ease_type) {
 		var t = data.get('ui:currentTime').value;
 		var v = utils.timeAtLayer(layer, t);
 		if (v && v.entry) {
-			v.entry.tween  = ease_type;
+			v.entry.tween = ease_type;
 		}
 
 		undo_manager.save(new UndoState(data, 'Add Ease'));
@@ -145,7 +146,7 @@ function Timeliner(target, container, options) {
 	var start_play = null,
 		played_from = 0; // requires some more tweaking
 
-	dispatcher.on('controls.toggle_play', function() {
+	dispatcher.on('controls.toggle_play', function () {
 		if (start_play) {
 			pausePlaying();
 		} else {
@@ -153,7 +154,7 @@ function Timeliner(target, container, options) {
 		}
 	});
 
-	dispatcher.on('controls.restart_play', function() {
+	dispatcher.on('controls.restart_play', function () {
 		if (!start_play) {
 			startPlaying();
 		}
@@ -166,11 +167,11 @@ function Timeliner(target, container, options) {
 
 	function startPlaying() {
 		start_play = performance.now() - data.get('ui:currentTime').value * 1000;
-		// layer_panel.setControlStatus(true);
+		layer_panel.setControlStatus(true);
 		if (options?.dispatcherEventCb) {
 			if (data.get('ui:currentTime').value > 0) {
 				options.dispatcherEventCb("resume");
-			} else{
+			} else {
 				options.dispatcherEventCb("start");
 			}
 		}
@@ -178,13 +179,13 @@ function Timeliner(target, container, options) {
 
 	function pausePlaying() {
 		start_play = null;
-		// layer_panel.setControlStatus(false);
+		layer_panel.setControlStatus(false);
 		if (options?.dispatcherEventCb) {
 			options.dispatcherEventCb("pause");
 		}
 	}
 
-	dispatcher.on('controls.stop', function() {
+	dispatcher.on('controls.stop', function () {
 		if (start_play !== null) pausePlaying();
 		setCurrentTime(0);
 	});
@@ -192,14 +193,14 @@ function Timeliner(target, container, options) {
 	var currentTimeStore = data.get('ui:currentTime');
 	dispatcher.on('time.update', setCurrentTime);
 
-	dispatcher.on('totalTime.update', function(value) {
+	dispatcher.on('totalTime.update', function (value) {
 		// context.totalTime = value;
 		// controller.setDuration(value);
 		// timeline.repaint();
 	});
 
 	/* update scroll viewport */
-	dispatcher.on('update.scrollTime', function(v) {
+	dispatcher.on('update.scrollTime', function (v) {
 		v = Math.max(0, v);
 		data.get('ui:scrollTime').value = v;
 		repaintAll();
@@ -218,11 +219,11 @@ function Timeliner(target, container, options) {
 		// layer_panel.repaint(s);
 	}
 
-	dispatcher.on('target.notify', function(name, value) {
+	dispatcher.on('target.notify', function (name, value) {
 		if (target) target[name] = value;
 	});
 
-	dispatcher.on('update.scale', function(v) {
+	dispatcher.on('update.scale', function (v) {
 		console.log('range', v);
 		data.get('ui:timeScale').value = v;
 
@@ -230,14 +231,14 @@ function Timeliner(target, container, options) {
 	});
 
 	// handle undo / redo
-	dispatcher.on('controls.undo', function() {
+	dispatcher.on('controls.undo', function () {
 		var history = undo_manager.undo();
 		data.setJSONString(history.state);
 
 		updateState();
 	});
 
-	dispatcher.on('controls.redo', function() {
+	dispatcher.on('controls.redo', function () {
 		var history = undo_manager.redo();
 		data.setJSONString(history.state);
 
@@ -384,17 +385,17 @@ function Timeliner(target, container, options) {
 
 	this.openLocalSave = open;
 
-	dispatcher.on('import', function() {
+	dispatcher.on('import', function () {
 		promptImport();
 	}.bind(this));
 
-	dispatcher.on('new', function() {
+	dispatcher.on('new', function () {
 		data.blank();
 		updateState();
 	});
 
-	dispatcher.on('openfile', function() {
-		openAs(function(data) {
+	dispatcher.on('openfile', function () {
+		openAs(function (data) {
 			// console.log('loaded ' + data);
 			loadJSONString(data);
 		}, div);
@@ -466,11 +467,11 @@ function Timeliner(target, container, options) {
 	label_status.textContent = 'hello!';
 	label_status.style.marginLeft = '10px';
 
-	this.setStatus = function(text) {
+	this.setStatus = function (text) {
 		label_status.textContent = text;
 	};
 
-	dispatcher.on('state:save', function(description) {
+	dispatcher.on('state:save', function (description) {
 		dispatcher.fire('status', description);
 		save('autosave');
 	});
@@ -484,7 +485,7 @@ function Timeliner(target, container, options) {
 
 	// add layer
 	var plus = new IconButton(12, 'plus', 'New Layer', dispatcher);
-	plus.onClick(function() {
+	plus.onClick(function () {
 		var name = prompt('Layer name?');
 		addLayer(name);
 
@@ -498,7 +499,7 @@ function Timeliner(target, container, options) {
 
 	// trash
 	var trash = new IconButton(12, 'trash', 'Delete save', dispatcher);
-	trash.onClick(function() {
+	trash.onClick(function () {
 		var name = data.get('name').value;
 		if (name && localStorage[STORAGE_PREFIX + name]) {
 			var ok = confirm('Are you sure you wish to delete ' + name + '?');
@@ -528,22 +529,22 @@ function Timeliner(target, container, options) {
 	div.appendChild(scrollbar.dom);
 
 	// percentages
-	scrollbar.onScroll.do(function(type, scrollTo) {
+	scrollbar.onScroll.do(function (type, scrollTo) {
 		switch (type) {
-		case 'scrollto':
-			layer_panel.scrollTo(scrollTo);
-			timeLinePanel.scrollTo(scrollTo);
-			break;
-	//		case 'pageup':
-	// 			scrollTop -= pageOffset;
-	// 			me.draw();
-	// 			me.updateScrollbar();
-	// 			break;
-	// 		case 'pagedown':
-	// 			scrollTop += pageOffset;
-	// 			me.draw();
-	// 			me.updateScrollbar();
-	// 			break;
+			case 'scrollto':
+				layer_panel.scrollTo(scrollTo);
+				timeLinePanel.scrollTo(scrollTo);
+				break;
+			//		case 'pageup':
+			// 			scrollTop -= pageOffset;
+			// 			me.draw();
+			// 			me.updateScrollbar();
+			// 			break;
+			// 		case 'pagedown':
+			// 			scrollTop += pageOffset;
+			// 			me.draw();
+			// 			me.updateScrollbar();
+			// 			break;
 		}
 	});
 
@@ -564,7 +565,7 @@ function Timeliner(target, container, options) {
 	// Enter - play all
 	// k - keyframe
 
-	document.addEventListener('keydown', function(e) {
+	document.addEventListener('keydown', function (e) {
 		var play = e.keyCode == 32; // space
 		var enter = e.keyCode == 13; //
 		var undo = e.metaKey && e.keyCode == 91 && !e.shiftKey;
@@ -649,7 +650,7 @@ function Timeliner(target, container, options) {
 		domParent.removeChild(pane);
 	};
 
-	this.setTarget = function(t) {
+	this.setTarget = function (t) {
 		target = t;
 	};
 

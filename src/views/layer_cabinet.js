@@ -6,7 +6,7 @@ import { utils } from '../utils/utils.js'
 import { Theme } from '../theme.js'
 import { UINumber } from '../ui/ui_number.js'
 
-const { STORAGE_PREFIX, style } = utils
+const { STORAGE_PREFIX, style, addClass } = utils
 const btnStyles = {
     width: '22px',
     height: '22px',
@@ -36,6 +36,8 @@ class LayerCabinet {
     #layer_uis = [];
     #unused_layers = [];
     #visible_layers = 0;
+    #treeViewLayer;
+    #subUlDom;
 
     constructor(data, dispatcher) {
         this.#data = data;
@@ -58,7 +60,7 @@ class LayerCabinet {
             margin: '0px',
             marginLeft: '2px',
             marginRight: '2px'
-	    });
+        });
 
         this.#domRange.addEventListener('mousedown', () => {
             this.#draggingRange = 1;
@@ -83,8 +85,36 @@ class LayerCabinet {
 
         this.#domContainer.appendChild(this.#domTop);
 
+        this.initTreeView();
+
         this.setState(this.#layer_store);
         this.repaint();
+    }
+
+    initTreeView() {
+        this.#treeViewLayer = document.createElement('ul');
+        addClass(this.#treeViewLayer, 'tree-animation');
+
+        const liDom = document.createElement('li');
+        const detailDom = document.createElement('details');
+        detailDom.setAttribute('open', '');
+        detailDom.addEventListener('toggle', () => {
+            if (detailDom.open) {
+                this.#dispatcher.fire('layer.tree.opened');
+            } else {
+                this.#dispatcher.fire('layer.tree.closed');
+            }
+        });
+
+        const summaryDom = document.createElement('summary');
+        summaryDom.innerText = 'Layers';
+        detailDom.appendChild(summaryDom);
+        liDom.appendChild(detailDom);
+
+        this.#subUlDom = document.createElement('ul');
+        detailDom.appendChild(this.#subUlDom);
+        this.#treeViewLayer.appendChild(liDom);
+        this.#domLayerScroll.appendChild(this.#treeViewLayer);
     }
 
     initDomOperation(dispatcher) {
@@ -137,61 +167,70 @@ class LayerCabinet {
             bottom: 0,
             overflow: 'hidden'
         });
-        domLayerScroll.id = 'layer_scroll';
+        domLayerScroll.id = 'layer_cabinet';
     }
 
     setState(state) {
-		this.#layer_store = state;
-		var layers = this.#layer_store.value;
-		var i, layer;
-		for (i = 0; i < layers.length; i++) {
-			layer = layers[i];
-			if (!this.#layer_uis[i]) {
-				let layer_ui;
-				if (this.#unused_layers.length) {
-					layer_ui = this.#unused_layers.pop();
-					layer_ui.dom.style.display = 'block';
-				} else {
-					layer_ui = new LayerView(layer, this.#dispatcher);
-					this.#domLayerScroll.appendChild(layer_ui.dom);
-				}
-				this.#layer_uis.push(layer_ui);
-			}
-		}
-	}
+        this.#layer_store = state;
+        var layers = this.#layer_store.value;
+        var i, layer;
+
+
+        console.log('layers', layers);
+
+
+        for (i = 0; i < layers.length; i++) {
+            layer = layers[i];
+            if (!this.#layer_uis[i]) {
+                let layer_ui;
+                if (this.#unused_layers.length) {
+                    layer_ui = this.#unused_layers.pop();
+                    layer_ui.dom.style.display = 'block';
+                } else {
+                    layer_ui = new LayerView(layer, this.#dispatcher);
+                    // this.#domLayerScroll.appendChild(layer_ui.dom);
+                    const liDom = document.createElement('li');
+                    // liDom.style.listStyle = 'none';
+                    liDom.appendChild(layer_ui.dom);
+                    this.#subUlDom.appendChild(liDom);
+                }
+                this.#layer_uis.push(layer_ui);
+            }
+        }
+    }
 
     setControlStatus(state) {
-		this.#isPlaying = state;
-		if (this.#isPlaying) {
-			this.#playBtn.setIcon('pause');
-			this.#playBtn.setTip('Pause');
-		}
-		else {
-			this.#playBtn.setIcon('play');
-			this.#playBtn.setTip('Play');
-		}
-	}
+        this.#isPlaying = state;
+        if (this.#isPlaying) {
+            this.#playBtn.setIcon('pause');
+            this.#playBtn.setTip('Pause');
+        }
+        else {
+            this.#playBtn.setIcon('play');
+            this.#playBtn.setTip('Play');
+        }
+    }
 
     repaint(s) {
-		s = this.#currentTimeStore.value;
-		var i;
-		s = s || 0;
-		var layers = this.#layer_store.value;
-		for (i = this.#layer_uis.length; i-- > 0;) {
-			if (i >= layers.length) {
-				this.#layer_uis[i].dom.style.display = 'none';
-				this.#unused_layers.push(this.#layer_uis.pop());
-				continue;
-			}
-			this.#layer_uis[i].setState(layers[i], this.#layer_store.get(i));
-			this.#layer_uis[i].repaint(s);
-		}
-		this.#visible_layers = this.#layer_uis.length;
-	}
+        s = this.#currentTimeStore.value;
+        var i;
+        s = s || 0;
+        var layers = this.#layer_store.value;
+        for (i = this.#layer_uis.length; i-- > 0;) {
+            if (i >= layers.length) {
+                this.#layer_uis[i].dom.style.display = 'none';
+                this.#unused_layers.push(this.#layer_uis.pop());
+                continue;
+            }
+            this.#layer_uis[i].setState(layers[i], this.#layer_store.get(i));
+            this.#layer_uis[i].repaint(s);
+        }
+        this.#visible_layers = this.#layer_uis.length;
+    }
 
-    scrollTo = function(x) {
-		this.#domLayerScroll.scrollTop = x * (this.#domLayerScroll.scrollHeight - this.#domLayerScroll.clientHeight);
-	}
+    scrollTo = function (x) {
+        this.#domLayerScroll.scrollTop = x * (this.#domLayerScroll.scrollHeight - this.#domLayerScroll.clientHeight);
+    }
 
     get dom() {
         return this.#domContainer;
@@ -213,24 +252,24 @@ class LayerCabinet {
     }
 
     changeRange() {
-		this.#dispatcher.fire('update.scale', 6 * Math.pow(100, -range.value) );
-	}
+        this.#dispatcher.fire('update.scale', 6 * Math.pow(100, -range.value));
+    }
 
     convertPercentToTime(t) {
-		var min_time = 10 * 60; // 10 minutes
-		min_time = this.#data.get('ui:totalTime').value;
-		var max_time = 1;
-		var v = LayoutConstants.width * 0.8 / (t * (max_time - min_time) + min_time);
-		return v;
-	}
+        var min_time = 10 * 60; // 10 minutes
+        min_time = this.#data.get('ui:totalTime').value;
+        var max_time = 1;
+        var v = LayoutConstants.width * 0.8 / (t * (max_time - min_time) + min_time);
+        return v;
+    }
 
     convertTimeToPercent(v) {
-		var min_time = 10 * 60; // 10 minutes
-		min_time = this.#data.get('ui:totalTime').value;
-		var max_time = 1;
-		var t  = ((LayoutConstants.width * 0.8 / v) - min_time)  / (max_time - min_time);
-		return t;
-	}
+        var min_time = 10 * 60; // 10 minutes
+        min_time = this.#data.get('ui:totalTime').value;
+        var max_time = 1;
+        var t = ((LayoutConstants.width * 0.8 / v) - min_time) / (max_time - min_time);
+        return t;
+    }
 }
 
 export { LayerCabinet };
