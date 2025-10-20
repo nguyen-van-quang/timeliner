@@ -252,7 +252,7 @@ class LayerCabinet {
     }
 
     changeRange() {
-        this.#dispatcher.fire('update.scale', 6 * Math.pow(100, -range.value));
+        this.#dispatcher.fire('update.scale', 6 * Math.pow(100, - this.#domRange.value));
     }
 
     convertPercentToTime(t) {
