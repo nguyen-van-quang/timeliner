@@ -3,14 +3,14 @@
 import { utils } from '../utils/utils.js';
 
 const timelinerCSS = `
-    ul {
+    ul.tree-animation {
         list-style: none;
         line-height: 2em;
     }
-    ul li {
+    ul.tree-animation li {
         position: relative;
     }
-    ul li::before {
+    ul.tree-animation li::before {
         position: absolute;
         left: -36px;
         top: 0;
@@ -20,7 +20,7 @@ const timelinerCSS = `
         height: 2em;
         content: '';
     }
-    ul li::after {
+    ul.tree-animation li::after {
         position: absolute;
         left: -36px;
         bottom: 0;
@@ -29,7 +29,7 @@ const timelinerCSS = `
         height: 100%;
         content: '';
     }
-    ul li:last-child::after {
+    ul.tree-animation li:last-child::after {
         display: none;
     }
     ul.tree-animation > li::after, ul.tree-animation > li::before {
@@ -43,6 +43,13 @@ const timelinerCSS = `
     }
     .tree-animation summary::-webkit-details-marker {
         display: none;
+    }
+
+    .timeline-cabinet {
+
+    }
+    .timeline-cabinet li:hover {
+         background-color: gray;
     }
 `;
 

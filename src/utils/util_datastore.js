@@ -1,25 +1,27 @@
 /* eslint-disable */
 var package_json = { version: "test-version" };
 
+// import { eventBus } from './event_bus.js'; // Giả sử bạn có event bus
 import { LayoutConstants } from '../layout_constants.js'
 import { Do } from './do.js'
 
 // Data Store with a source of truth
-function DataStore() {
+function DataStore(data) {
+	this.data = data;
 	this.DELIMITER = ':';
-	this.blank();
+	// this.blank();
 	this.onOpen = new Do();
 	this.onSave = new Do();
 
-	this.listeners = [];
+	// this.listeners = [];
 }
 
-DataStore.prototype.addListener = function(path, cb) {
-	this.listeners.push({
-		path: path,
-		callback: cb
-	});
-};
+// DataStore.prototype.addListener = function(path, cb) {
+// 	this.listeners.push({
+// 		path: path,
+// 		callback: cb
+// 	});
+// };
 
 DataStore.prototype.blank = function() {
 	var data = {};
@@ -82,10 +84,9 @@ DataStore.prototype.setValue = function(paths, value) {
 	}
 
 	reference[path] = value;
-
-	this.listeners.forEach(function(l) {
-		if (paths.indexOf(l.path) > -1) l.callback();
-	})
+	
+	// eventBus.emit('datastore:update', { path: paths, value: value });
+	// eventBus.emit(`datastore:update:${paths}`, value);
 };
 
 DataStore.prototype.get = function(path, suffix) {

@@ -16,6 +16,128 @@ const LINE_HEIGHT = LayoutConstants.LINE_HEIGHT,
 	LEFT_PANE_WIDTH = LayoutConstants.LEFT_PANE_WIDTH,
 	TOP = 10;
 
+class EasingRect {
+	#timeliner;
+	#ctx;
+	#ctx_wrap;
+	#track_canvas;
+	#x1;
+	#y1;
+	#x2;
+	#y2;
+	#frame;
+	#frame2;
+
+	constructor(timeliner, ctx, ctx_wrap, track_canvas, x1, y1, x2, y2, frame, frame2) {
+		this.#timeliner = timeliner;
+		this.#ctx = ctx;
+		this.#ctx_wrap = ctx_wrap;
+		this.#track_canvas = track_canvas;
+		this.#x1 = x1;
+		this.#y1 = y1;
+		this.#x2 = x2;
+		this.#y2 = y2;
+		this.#frame = frame;
+		this.#frame2 = frame2;
+	}
+
+	path() {
+		this.#ctx_wrap.beginPath()
+			.rect(this.#x1, this.#y1, this.#x2 - this.#x1, this.#y2 - this.#y1)
+			.closePath();
+	}
+
+	paint() {
+		this.path();
+		this.#ctx.fillStyle = this.#frame._color;
+		this.#ctx.fill();
+	}
+
+	mouseover() {
+		this.#track_canvas.style.cursor = 'pointer'; // pointer move ew-resize
+	}
+
+	mouseout() {
+		this.#track_canvas.style.cursor = 'default';
+	}
+
+	x_to_time(x) {
+		return this.#timeliner.x_to_time(x);
+	}
+
+	mousedrag(e) {
+		let t1 = this.x_to_time(this.#x1 + e.dx);
+		t1 = Math.max(0, t1);
+		// TODO limit moving to neighbours
+		this.#frame.time = t1;
+
+		let t2 = this.x_to_time(this.#x2 + e.dx);
+		t2 = Math.max(0, t2);
+		this.#frame2.time = t2;
+	}
+}
+
+class Diamond {
+	#dispatcher;
+	#timeliner;
+	#ctx_wrap;
+	#track_canvas;
+	#isOver = false;
+	#x;
+	#y2;
+	#frame;
+
+	constructor(dispatcher, timeliner, ctx_wrap, track_canvas, frame, y) {
+		this.#timeliner = timeliner;
+		this.#dispatcher = dispatcher;
+		this.#ctx_wrap = ctx_wrap;
+		this.#track_canvas = track_canvas;
+		this.#frame = frame;
+		this.#x = this.time_to_x(frame.time);
+		this.#y2 = y + LINE_HEIGHT * 0.5 - DIAMOND_SIZE / 2;
+	}
+
+	time_to_x(s) {
+		return this.#timeliner.time_to_x(s);
+	}
+
+	path() {
+		this.#ctx_wrap
+			.beginPath()
+			.moveTo(this.#x, this.#y2)
+			.lineTo(this.#x + DIAMOND_SIZE / 2, this.#y2 + DIAMOND_SIZE / 2)
+			.lineTo(this.#x, this.#y2 + DIAMOND_SIZE)
+			.lineTo(this.#x - DIAMOND_SIZE / 2, this.#y2 + DIAMOND_SIZE / 2)
+			.closePath();
+	}
+
+	paint() {
+		this.path();
+		this.#ctx_wrap.fillStyle(this.#isOver ? 'yellow' : Theme.c);
+		this.#ctx_wrap.fill().stroke();
+	}
+
+	mouseover() {
+		this.#isOver = true;
+		this.#track_canvas.style.cursor = 'move'; // pointer move ew-resize
+		this.paint();
+	}
+
+	mouseout() {
+		this.#isOver = false;
+		this.#track_canvas.style.cursor = 'default';
+		this.paint();
+	}
+
+	mousedrag(e) {
+		let t = this.#timeliner.x_to_time(this.#x + e.dx);
+		t = Math.max(0, t);
+		// TODO limit moving to neighbours
+		this.#frame.time = t;
+		this.#dispatcher.fire('time.update', t);
+	}
+}
+
 class TimelinePanel {
 	#data;
 	#dispatcher;
@@ -31,11 +153,8 @@ class TimelinePanel {
 	#ctx_wrap;
 	#currentTime; // measured in seconds, technically it could be in frames or  have it in string format (0:00:00:1-60)
 	#LEFT_GUTTER = 20;
-	#i;
 	#x;
 	#y;
-	#il;
-	#j;
 	#needsRepaint = false;
 	#renderItems = [];
 	#time_scale = LayoutConstants.time_scale;
@@ -54,7 +173,6 @@ class TimelinePanel {
 	#frame_start = 0;
 
 	#canvasBounds;
-	#pointerdidMoved = false;
 	#pointer = null;
 
 
@@ -80,16 +198,16 @@ class TimelinePanel {
 		style(this.#track_canvas, {
 			position: 'absolute',
 			top: TIME_SCROLLER_HEIGHT + 'px',
-			left: '0px'
+			left: '0px',
+			border: '2px solid green'
 		});
-
-
 
 		this.#scroll_canvas = new Canvas(LayoutConstants.width, TIME_SCROLLER_HEIGHT);
 		style(this.#scroll_canvas.dom, {
 			position: 'absolute',
 			top: '0px',
-			left: '10px'
+			left: '10px',
+			border: '2px solid blue'
 		});
 		this.#scroll_canvas.uses(new ScrollCanvas(dispatcher, data));
 
@@ -109,6 +227,12 @@ class TimelinePanel {
 
 		// TODO: should be only listen on the TimelinePanel
 		document.addEventListener('mousemove', this.onMouseMove.bind(this));
+		// document.addEventListener('mousemove', function(e) {
+		// 	console.log('mousedownItem: ', this.#mousedownItem);
+		// 	console.log('mousedown2: ', this.#mousedown2);
+		// 	console.log('mousemove {x: ', e.clientX, ', y: ', e.clientY, '}');
+		// }.bind(this));
+
 
 		this.repaint();
 
@@ -126,19 +250,6 @@ class TimelinePanel {
 		};
 
 		const handleMove = (e) => {
-			if (this.#mousedown2) {
-				this.#pointer = {
-					x: e.offsetx,
-					y: e.offsety
-				};
-				this.pointerEvents();
-				if (!this.#mousedownItem) {
-					this.#dispatcher.fire('time.update', this.x_to_time(e.offsetx));
-				}
-			}
-		};
-
-		const handleUp = (e) => {
 			this.#mousedown2 = false;
 			if (this.#mousedownItem) {
 				this.#mouseDownThenMove = true;
@@ -150,18 +261,18 @@ class TimelinePanel {
 			}
 		};
 
-		handleDrag(this.#track_canvas, handleDown, handleMove, handleUp);
-
-		// Start animation loop
-		this.startAnimationLoop();
-	}
-
-	startAnimationLoop() {
-		const animate = () => {
-			this._paint();
-			requestAnimationFrame(animate);
+		const handleUp = (e) => {
+			if (this.#mouseDownThenMove) {
+				this.#dispatcher.fire('keyframe.move');
+			} else {
+				this.#dispatcher.fire('time.update', this.x_to_time(e.offsetx));
+			}
+			this.#mousedown2 = false;
+			this.#mousedownItem = null;
+			this.#mouseDownThenMove = false;
 		};
-		animate();
+
+		handleDrag(this.#track_canvas, handleDown, handleMove, handleUp);
 	}
 
 	scrollTo(top, left) {
@@ -189,62 +300,57 @@ class TimelinePanel {
 	}
 
 	drawLayerContents() {
-		this.#renderItems = [];
-		// horizontal Layer lines
-		for (let i = 0, il = this.#layers.length; i <= il; i++) {
-			this.#ctx.strokeStyle = Theme.b;
-			this.#ctx.beginPath();
-			this.#y = this.#i * LINE_HEIGHT;
-			this.#y = ~~this.#y - 0.5;
+		// this.#renderItems = [];
+		// // horizontal Layer lines
+		// for (let i = 0, il = this.#layers.length; i <= il; i++) {
+		// 	this.#ctx.strokeStyle = Theme.b;
+		// 	this.#ctx.beginPath();
+		// 	this.#y = i * LINE_HEIGHT;
+		// 	this.#y = ~~this.#y - 0.5;
 
-			this.#ctx_wrap
-				.moveTo(0, this.#y)
-				.lineTo(LayoutConstants.width, this.#y)
-				.stroke();
-		}
+		// 	this.#ctx_wrap
+		// 		.moveTo(0, this.#y)
+		// 		.lineTo(LayoutConstants.width, this.#y)
+		// 		.stroke();
+		// }
 
-		let frame, frame2, j;
+		// let frame, frame2, j;
 
-		// Draw Easing Rects
-		for (let i = 0, il = this.#layers.length; i < il; i++) {
-			// check for keyframes
-			let layer = this.#layers[i];
-			let values = layer.values;
+		// // Draw Easing Rects
+		// for (let i = 0, il = this.#layers.length; i < il; i++) {
+		// 	// check for keyframes
+		// 	let layer = this.#layers[i];
+		// 	let values = layer.values;
 
-			let y = i * LINE_HEIGHT;
+		// 	let y = i * LINE_HEIGHT;
 
-			for (let j = 0; j < values.length - 1; j++) {
-				frame = values[j];
-				frame2 = values[j + 1];
+		// 	for (let j = 0; j < values.length - 1; j++) {
+		// 		frame = values[j];
+		// 		frame2 = values[j + 1];
 
-				// Draw Tween Rect
-				let x = this.time_to_x(frame.time);
-				let x2 = this.time_to_x(frame2.time);
+		// 		// Draw Tween Rect
+		// 		let x = this.time_to_x(frame.time);
+		// 		let x2 = this.time_to_x(frame2.time);
 
-				if (!frame.tween || frame.tween == 'none') continue;
+		// 		if (!frame.tween || frame.tween == 'none') continue;
 
-				let y1 = y + 2;
-				let y2 = y + LINE_HEIGHT - 2;
+		// 		let y1 = y + 2;
+		// 		let y2 = y + LINE_HEIGHT - 2;
 
-				this.#renderItems.push(new EasingRect(this, this.#ctx, this.#ctx_wrap, this.#track_canvas, x, y1, x2, y2, frame, frame2));
-			}
+		// 		this.#renderItems.push(new EasingRect(this, this.#ctx, this.#ctx_wrap, this.#track_canvas, x, y1, x2, y2, frame, frame2));
+		// 	}
 
-			for (let j = 0; j < values.length; j++) {
-				// Diamonds
-				frame = values[j];
-				console.log('Creating diamond for frame:', frame, 'at y:', y);
-				this.#renderItems.push(new Diamond(this.#dispatcher, this, this.#ctx_wrap, this.#track_canvas, frame, y));
-			}
-		}
+		// 	for (let j = 0; j < values.length; j++) {
+		// 		frame = values[j];
+		// 		this.#renderItems.push(new Diamond(this.#dispatcher, this, this.#ctx_wrap, this.#track_canvas, frame, y));
+		// 	}
+		// }
 
-		// render items
-		console.log('Rendering', this.#renderItems.length, 'items');
-		let item;
-		for (let i = 0, il = this.#renderItems.length; i < il; i++) {
-			item = this.#renderItems[i];
-			// item.paint(this.#ctx_wrap);
-			item.paint();
-		}
+		// for (let i = 0, il = this.#renderItems.length; i < il; i++) {
+		// 	let item = this.#renderItems[i];
+		// 	item.paint();
+		// 	// item.paint(this.#ctx_wrap);
+		// }
 	}
 
 	time_scaled() {
@@ -392,6 +498,16 @@ class TimelinePanel {
 			.run(this.drawLayerContents.bind(this))
 			.restore();
 
+			this.#ctx_wrap
+			.save()
+			.translate(0, MARKER_TRACK_HEIGHT + LINE_HEIGHT * 6 - 1)
+			.beginPath()
+			.rect(0, 0, LayoutConstants.width, this.#SCROLL_HEIGHT)
+			.translate(-this.#scrollLeft, -this.#scrollTop)
+			.clip()
+			.run(this.drawLayerContents.bind(this))
+			.restore();
+
 		// Current Marker / Cursor
 		this.#ctx.strokeStyle = 'red'; // Theme.c
 		this.#x = (this.#currentTime - this.#frame_start) * this.#time_scale + this.#LEFT_GUTTER;
@@ -446,7 +562,6 @@ class TimelinePanel {
 
 	onPointerMove(x, y) {
 		if (this.#mousedownItem) return;
-		this.#pointerdidMoved = true;
 		this.#pointer = { x, y };
 	}
 
@@ -458,134 +573,12 @@ class TimelinePanel {
 	}
 
 	setState(state) {
-		this.#layers = state.value;
+		// this.#layers = state.get();
 		this.repaint();
 	}
 
 	get dom() {
 		return this.#dom;
-	}
-}
-
-class EasingRect {
-	#timeliner;
-	#ctx;
-	#ctx_wrap;
-	#track_canvas;
-	#x1;
-	#y1;
-	#x2;
-	#y2;
-	#frame;
-	#frame2;
-
-	constructor(timeliner, ctx, ctx_wrap, track_canvas, x1, y1, x2, y2, frame, frame2) {
-		this.#timeliner = timeliner;
-		this.#ctx = ctx;
-		this.#ctx_wrap = ctx_wrap;
-		this.#track_canvas = track_canvas;
-		this.#x1 = x1;
-		this.#y1 = y1;
-		this.#x2 = x2;
-		this.#y2 = y2;
-		this.#frame = frame;
-		this.#frame2 = frame2;
-	}
-
-	path() {
-		this.#ctx_wrap.beginPath()
-			.rect(this.#x1, this.#y1, this.#x2 - this.#x1, this.#y2 - this.#y1)
-			.closePath();
-	}
-
-	paint() {
-		this.path();
-		this.#ctx.fillStyle = this.#frame._color;
-		this.#ctx.fill();
-	}
-
-	mouseover() {
-		this.#track_canvas.style.cursor = 'pointer'; // pointer move ew-resize
-	}
-
-	mouseout() {
-		this.#track_canvas.style.cursor = 'default';
-	}
-
-	x_to_time(x) {
-		return this.#timeliner.x_to_time(x);
-	}
-
-	mousedrag(e) {
-		let t1 = this.x_to_time(this.#x1 + e.dx);
-		t1 = Math.max(0, t1);
-		// TODO limit moving to neighbours
-		this.#frame.time = t1;
-
-		let t2 = this.x_to_time(this.#x2 + e.dx);
-		t2 = Math.max(0, t2);
-		this.#frame2.time = t2;
-	}
-}
-
-class Diamond {
-	#dispatcher;
-	#timeliner;
-	#ctx_wrap;
-	#track_canvas;
-	#isOver = false;
-	#x;
-	#y2;
-	#frame;
-
-	constructor(dispatcher, timeliner, ctx_wrap, track_canvas, frame, y) {
-		this.#timeliner = timeliner;
-		this.#dispatcher = dispatcher;
-		this.#ctx_wrap = ctx_wrap;
-		this.#track_canvas = track_canvas;
-		this.#frame = frame;
-		this.#x = this.time_to_x(frame.time);
-		this.#y2 = y + LINE_HEIGHT * 0.5 - DIAMOND_SIZE / 2;
-	}
-
-	time_to_x(s) {
-		return this.#timeliner.time_to_x(s);
-	}
-
-	path() {
-		this.#ctx_wrap
-			.beginPath()
-			.moveTo(this.#x, this.#y2)
-			.lineTo(this.#x + DIAMOND_SIZE / 2, this.#y2 + DIAMOND_SIZE / 2)
-			.lineTo(this.#x, this.#y2 + DIAMOND_SIZE)
-			.lineTo(this.#x - DIAMOND_SIZE / 2, this.#y2 + DIAMOND_SIZE / 2)
-			.closePath();
-	}
-
-	paint() {
-		this.path();
-		this.#ctx_wrap.fillStyle(this.#isOver ? 'yellow' : Theme.c);
-		this.#ctx_wrap.fill().stroke();
-	}
-
-	mouseover() {
-		this.#isOver = true;
-		this.#track_canvas.style.cursor = 'move'; // pointer move ew-resize
-		this.paint();
-	}
-
-	mouseout() {
-		this.#isOver = false;
-		this.#track_canvas.style.cursor = 'default';
-		this.paint();
-	}
-
-	mousedrag(e) {
-		let t = this.#timeliner.x_to_time(this.#x + e.dx);
-		t = Math.max(0, t);
-		// TODO limit moving to neighbours
-		this.#frame.time = t;
-		this.#dispatcher.fire('time.update', t);
 	}
 }
 

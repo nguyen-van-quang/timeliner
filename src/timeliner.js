@@ -4,6 +4,7 @@ import { Dispatcher } from './utils/util_dispatcher.js'
 import { Theme } from './theme.js'
 import { LayoutConstants as Settings } from './layout_constants.js';
 import { utils } from './utils/utils.js'
+import { TimelineCabinet } from './views/timeline_cabinet.js';
 import { LayerCabinet } from './views/layer_cabinet.js'
 import { TimelinePanel } from './views/panel.js'
 import './styles/css-loader.js' // Auto-load CSS with pseudo-classes
@@ -25,26 +26,36 @@ class LayerProp {
 }
 
 class Timeliner {
-	#target = null;
-	#options = null;
-	#dispatcher = new Dispatcher();
-	#data = new DataStore();
-	#layer_store = this.#data.get('layers');
-	#layers = this.#layer_store.value;
-	#undo_manager = new UndoManager(this.#dispatcher);
-	#timeline_panel = new TimelinePanel(this.#data, this.#dispatcher);
-	#layer_cabinet = new LayerCabinet(this.#data, this.#dispatcher);
+	// #target;
+	#options;
+	#dispatcher;
+	#data;
+	#layer_store;
+	#layers;
+	#undo_manager;
+	#timeline_cabinet;
+	#timeline_panel;
+	#layer_cabinet;
 	#start_play = null;
 	#played_from = 0; // requires some more tweaking
-	#current_time_store = this.#data.get('ui:currentTime');
+	#current_time_store;
 	#needs_resize = true;
 	#subDom = document.createElement('div');
 	#dom = document.createElement('div');
 	#vertical_scroll_bar = new ScrollBar(200, 10);
 	// #label_status = document.createElement('span');
 
-	constructor(target, container, options) {
-		this.#target = target;
+	constructor(data, container, options) {
+		this.#dispatcher = new Dispatcher();
+		this.#data = new DataStore(data);
+		// this.#target = target;
+		this.#undo_manager = new UndoManager(this.#dispatcher);
+		this.#timeline_cabinet = new TimelineCabinet(this.#data.get('timelines'), this.#dispatcher);
+		this.#timeline_panel = new TimelinePanel(this.#data, this.#dispatcher);
+		this.#layer_cabinet = new LayerCabinet(this.#data, this.#dispatcher);
+		this.#current_time_store = this.#data.get('ui:currentTime');
+
+
 		this.#options = options;
 		this.#dispatcher.on('keyframe', (layer, value) => {
 			const currentTime = data.get('ui:currentTime').value;
@@ -153,11 +164,11 @@ class Timeliner {
 			this.#data.get('ui:scrollTime').value = time;
 			this.repaintAll();
 		});
-		this.#dispatcher.on('target.notify', (name, value) => {
-			if (this.#target) {
-				this.#target[name] = value;
-			}
-		});
+		// this.#dispatcher.on('target.notify', (name, value) => {
+		// 	if (this.#target) {
+		// 		this.#target[name] = value;
+		// 	}
+		// });
 		this.#dispatcher.on('update.scale', (timeScale) => {
 			this.#data.get('ui:timeScale').value = timeScale;
 			this.#timeline_panel.repaint();
@@ -180,6 +191,12 @@ class Timeliner {
 			this.save('autosave');
 		});
 		// this.#dispatcher.on('status', this.setStatus.bind(this));
+		this.#dispatcher.on('timeline.select', (timeline) => {
+			console.log('timeline selected', timeline);
+			this.#layer_cabinet.setState(timeline.get('targets'));
+			this.#timeline_panel.setState(timeline.get('targets'));
+		});
+		
 
 		this.#vertical_scroll_bar.onScroll.do((type, scrollTo) => {
 			switch (type) {
@@ -193,9 +210,10 @@ class Timeliner {
 		// this.#label_status.textContent = 'hello!';
 		// this.#label_status.style.marginLeft = '10px';
 
+		this.#subDom.appendChild(this.#timeline_cabinet.dom);
 		this.#subDom.appendChild(this.#layer_cabinet.dom);
 		this.#subDom.appendChild(this.#timeline_panel.dom);
-		this.#subDom.appendChild(this.#vertical_scroll_bar.dom);
+		// this.#subDom.appendChild(this.#vertical_scroll_bar.dom);
 
 		this.#dom.appendChild(this.#subDom);
 		
@@ -263,17 +281,13 @@ class Timeliner {
 		if (this.#needs_resize) {
 			this.#subDom.style.width = Settings.width + 'px';
 			this.#subDom.style.height = Settings.height + 'px';
-			this.restyle(this.#layer_cabinet.dom, this.#timeline_panel.dom);
+			this.restyle(this.#timeline_cabinet.dom, this.#layer_cabinet.dom, this.#timeline_panel.dom);
 			this.#timeline_panel.resize();
 			this.repaintAll();
 			this.#needs_resize = false;
 			this.#dispatcher.fire('resize');
 		}
 		this.#timeline_panel._paint();
-	}
-
-	repaintAll() {
-
 	}
 
 	save(name) {
@@ -344,10 +358,11 @@ class Timeliner {
 	}
 
 	repaintAll() {
-		const contentHeight = this.#layers.length * Settings.LINE_HEIGHT;
-		this.#vertical_scroll_bar.setLength(Settings.TIMELINE_SCROLL_HEIGHT / contentHeight);
-		this.#layer_cabinet.repaint();
-		this.#timeline_panel.repaint();
+		// const contentHeight = this.#layers.length * Settings.LINE_HEIGHT;
+		// this.#vertical_scroll_bar.setLength(Settings.TIMELINE_SCROLL_HEIGHT / contentHeight);
+		const currentTime = this.#data.get('ui:currentTime').value;
+		this.#layer_cabinet.repaint(currentTime);
+		this.#timeline_panel.repaint(currentTime);
 	}
 
 	resize(width, height) {
@@ -365,10 +380,19 @@ class Timeliner {
 		this.#needs_resize = true;
 	}
 
-	restyle(left, right) {
-		style(left, {
+	restyle(timelineCabinet, layerCabinet, panel) {
+		style(timelineCabinet, {
 			position: 'absolute',
 			left: '0px',
+			top: '0px',
+			// height: Settings.height + 'px',
+			width: Settings.LEFT_PANE_WIDTH + 'px',
+			overflow: 'hidden',
+			border: '2px solid yellow'
+		});
+		style(layerCabinet, {
+			position: 'absolute',
+			left: Settings.LEFT_PANE_WIDTH + 'px',
 			top: '0px',
 			height: Settings.height + 'px',
 			width: Settings.LEFT_PANE_WIDTH + 'px',
@@ -376,7 +400,7 @@ class Timeliner {
 			border: '2px solid yellow'
 		});
 
-		style(right, {
+		style(panel, {
 			position: 'absolute',
 			left: Settings.LEFT_PANE_WIDTH + 'px',
 			top: '0px',
@@ -398,9 +422,9 @@ class Timeliner {
 		domParent.removeChild(this.#dom);
 	}
 
-	setTarget(target) {
-		this.#target = target;
-	}
+	// setTarget(target) {
+	// 	this.#target = target;
+	// }
 
 	getValueRanges(ranges, interval) {
 		interval = interval ? interval : 0.15;
