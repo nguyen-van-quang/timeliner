@@ -66,9 +66,10 @@ class EasingRect {
 	}
 
 	mousedrag(e) {
+		console.log('EasingRect.mousedrag');
 		let t1 = this.x_to_time(this.#x1 + e.dx);
 		t1 = Math.max(0, t1);
-		// TODO limit moving to neighbours
+		// TODO limit moving to the next neighbor
 		this.#frame.time = t1;
 
 		let t2 = this.x_to_time(this.#x2 + e.dx);
@@ -144,7 +145,7 @@ class TimelinePanel {
 	#dpr;
 	#track_canvas;
 	#scroll_canvas;
-	#layers;
+	#targets;
 	#scrollTop;
 	#scrollLeft;
 	#SCROLL_HEIGHT;
@@ -180,8 +181,7 @@ class TimelinePanel {
 		this.#data = data;
 		this.#dispatcher = dispatcher;
 		this.#dpr = window.devicePixelRatio || 1;
-
-		this.#layers = data.get('layers').value;
+		this.#targets = data.get('targets').value;
 
 		this.#track_canvas = document.createElement('canvas');
 		this.#track_canvas.addEventListener('dblclick', (e) => {
@@ -190,7 +190,7 @@ class TimelinePanel {
 			const my = e.clientY - this.#canvasBounds.top;
 			const track = this.y_to_track(my);
 			// const s = this.x_to_time(mx);
-			this.#dispatcher.fire('keyframe', this.#layers[track], this.#currentTime);
+			this.#dispatcher.fire('keyframe', this.#targets[track], this.#currentTime);
 		});
 		this.#track_canvas.addEventListener('mouseout', () => {
 			this.#pointer = null;
@@ -199,7 +199,7 @@ class TimelinePanel {
 			position: 'absolute',
 			top: TIME_SCROLLER_HEIGHT + 'px',
 			left: '0px',
-			border: '2px solid green'
+			// border: '2px solid green'
 		});
 
 		this.#scroll_canvas = new Canvas(LayoutConstants.width, TIME_SCROLLER_HEIGHT);
@@ -207,7 +207,7 @@ class TimelinePanel {
 			position: 'absolute',
 			top: '0px',
 			left: '10px',
-			border: '2px solid blue'
+			// border: '2px solid blue'
 		});
 		this.#scroll_canvas.uses(new ScrollCanvas(dispatcher, data));
 
@@ -226,7 +226,7 @@ class TimelinePanel {
 		this.#time_scale = LayoutConstants.time_scale;
 
 		// TODO: should be only listen on the TimelinePanel
-		document.addEventListener('mousemove', this.onMouseMove.bind(this));
+		this.#track_canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
 		// document.addEventListener('mousemove', function(e) {
 		// 	console.log('mousedownItem: ', this.#mousedownItem);
 		// 	console.log('mousedown2: ', this.#mousedown2);
@@ -276,7 +276,7 @@ class TimelinePanel {
 	}
 
 	scrollTo(top, left) {
-		this.#scrollTop = top * Math.max(this.#layers.length * LINE_HEIGHT - this.#SCROLL_HEIGHT, 0);
+		this.#scrollTop = top * Math.max(this.#targets.length * LINE_HEIGHT - this.#SCROLL_HEIGHT, 0);
 		this.repaint();
 	}
 
@@ -300,57 +300,67 @@ class TimelinePanel {
 	}
 
 	drawLayerContents() {
-		// this.#renderItems = [];
-		// // horizontal Layer lines
-		// for (let i = 0, il = this.#layers.length; i <= il; i++) {
-		// 	this.#ctx.strokeStyle = Theme.b;
-		// 	this.#ctx.beginPath();
-		// 	this.#y = i * LINE_HEIGHT;
-		// 	this.#y = ~~this.#y - 0.5;
+		this.#renderItems = [];
+		// horizontal Layer lines
+		if (!this.#targets || this.#targets.length === 0) {
+			return;
+		}
 
-		// 	this.#ctx_wrap
-		// 		.moveTo(0, this.#y)
-		// 		.lineTo(LayoutConstants.width, this.#y)
-		// 		.stroke();
-		// }
+		let next_target_gap = 0;
+		for (let i = 0; i < this.#targets.length; i++) {
+			const layers = this.#targets[i].layers;
+			for (let j = 0; j <= layers.length + 1; j++) {
+				this.#ctx.strokeStyle = Theme.b;
+				this.#ctx.beginPath();
+				let y = next_target_gap + j * LINE_HEIGHT;
+				y = ~~y - 0.5;
+				this.#ctx_wrap
+					.moveTo(0, y)
+					.lineTo(LayoutConstants.width, y)
+					.stroke();
+			}
+			next_target_gap += (layers.length + 2) * LINE_HEIGHT;
+		}
 
-		// let frame, frame2, j;
+		// Draw Easing Rects
+		next_target_gap = 0;
+		for (let i = 0; i < this.#targets.length; i++) {
+			next_target_gap += LINE_HEIGHT;
+			const layers = this.#targets[i].layers;
+			for (let j = 0; j < layers.length; j++) {
+				const layer = layers[j];
+				const frames = layer.frames;
+				const y = next_target_gap + j * LINE_HEIGHT;
 
-		// // Draw Easing Rects
-		// for (let i = 0, il = this.#layers.length; i < il; i++) {
-		// 	// check for keyframes
-		// 	let layer = this.#layers[i];
-		// 	let values = layer.values;
+				for (let k = 0; k < frames.length - 1; k++) {
+					const frame1 = frames[k];
+					const frame2 = frames[k + 1];
 
-		// 	let y = i * LINE_HEIGHT;
+					// Draw Tween Rect
+					const x1 = this.time_to_x(frame1.time);
+					const x2 = this.time_to_x(frame2.time);
 
-		// 	for (let j = 0; j < values.length - 1; j++) {
-		// 		frame = values[j];
-		// 		frame2 = values[j + 1];
+					if (!frame1.tween || frame1.tween == 'none') continue;
 
-		// 		// Draw Tween Rect
-		// 		let x = this.time_to_x(frame.time);
-		// 		let x2 = this.time_to_x(frame2.time);
+					const y1 = y + 2;
+					const y2 = y + LINE_HEIGHT - 2;
 
-		// 		if (!frame.tween || frame.tween == 'none') continue;
+					this.#renderItems.push(new EasingRect(this, this.#ctx, this.#ctx_wrap, this.#track_canvas, x1, y1, x2, y2, frame1, frame2));
+				}
 
-		// 		let y1 = y + 2;
-		// 		let y2 = y + LINE_HEIGHT - 2;
+				for (let j = 0; j < frames.length; j++) {
+					const frame = frames[j];
+					this.#renderItems.push(new Diamond(this.#dispatcher, this, this.#ctx_wrap, this.#track_canvas, frame, y));
+				}
+			}
+			next_target_gap += layers.length * LINE_HEIGHT;
+		}
 
-		// 		this.#renderItems.push(new EasingRect(this, this.#ctx, this.#ctx_wrap, this.#track_canvas, x, y1, x2, y2, frame, frame2));
-		// 	}
-
-		// 	for (let j = 0; j < values.length; j++) {
-		// 		frame = values[j];
-		// 		this.#renderItems.push(new Diamond(this.#dispatcher, this, this.#ctx_wrap, this.#track_canvas, frame, y));
-		// 	}
-		// }
-
-		// for (let i = 0, il = this.#renderItems.length; i < il; i++) {
-		// 	let item = this.#renderItems[i];
-		// 	item.paint();
-		// 	// item.paint(this.#ctx_wrap);
-		// }
+		for (let i = 0, il = this.#renderItems.length; i < il; i++) {
+			let item = this.#renderItems[i];
+			item.paint();
+			// item.paint(this.#ctx_wrap);
+		}
 	}
 
 	time_scaled() {
@@ -419,7 +429,7 @@ class TimelinePanel {
 		}
 		this.#scroll_canvas.repaint();
 
-		this.setTimeScale();
+		// this.setTimeScale();
 
 		this.#currentTime = this.#data.get('ui:currentTime').value;
 		this.#frame_start = this.#data.get('ui:scrollTime').value;
@@ -490,17 +500,7 @@ class TimelinePanel {
 		// Encapsulate a scroll rect for the layers
 		this.#ctx_wrap
 			.save()
-			.translate(0, MARKER_TRACK_HEIGHT + 51)
-			.beginPath()
-			.rect(0, 0, LayoutConstants.width, this.#SCROLL_HEIGHT)
-			.translate(-this.#scrollLeft, -this.#scrollTop)
-			.clip()
-			.run(this.drawLayerContents.bind(this))
-			.restore();
-
-			this.#ctx_wrap
-			.save()
-			.translate(0, MARKER_TRACK_HEIGHT + LINE_HEIGHT * 6 - 1)
+			.translate(0, MARKER_TRACK_HEIGHT + LINE_HEIGHT)
 			.beginPath()
 			.rect(0, 0, LayoutConstants.width, this.#SCROLL_HEIGHT)
 			.translate(-this.#scrollLeft, -this.#scrollTop)
@@ -563,17 +563,25 @@ class TimelinePanel {
 	onPointerMove(x, y) {
 		if (this.#mousedownItem) return;
 		this.#pointer = { x, y };
+		// console.log('Pointer: ', this.#pointer);
 	}
 
 	onMouseMove(e) {
+		// console.log('TimelinePanel.onMouseMove');
 		this.#canvasBounds = this.#track_canvas.getBoundingClientRect();
 		const mx = e.clientX - this.#canvasBounds.left;
 		const my = e.clientY - this.#canvasBounds.top;
 		this.onPointerMove(mx, my);
 	}
 
-	setState(state) {
-		// this.#layers = state.get();
+	// setState(state) {
+	// 	this.#data = state.value;
+	// 	this.repaint();
+	// }
+
+	set data(data) {
+		this.#data = data;
+		this.#targets = data.get('targets').value;
 		this.repaint();
 	}
 

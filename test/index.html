@@ -39,6 +39,12 @@
 				{
 					id: 'timeline_id_01',
 					name: "Timeline 01",
+					ui: {
+						currentTime: 0,
+						totalTime: 20,
+						scrollTime: 0,
+						timeScale: 60,
+					},
 					targets: [
 						{
 							id: "label01",
@@ -105,6 +111,12 @@
 				{
 					id: 'timeline_id_02',
 					name: "Timeline 02",
+					ui: {
+						currentTime: 0,
+						totalTime: 20,
+						scrollTime: 0,
+						timeScale: 60,
+					},
 					targets: [
 						{
 							id: "label01",
@@ -155,13 +167,6 @@
 										{ time: 1.1, value: 0, _color: "#47e90", tween: "quadEaseOut" },
 										{ time: 1.7, value: -0.5, _color: "#f76bca", tween: "quadEaseOut" },
 										{ time: 2.3, value: 0, _color: "#d59cfd" }
-									]
-								},
-								{
-									name: "rotate",
-									frames: [
-										{ time: 0.1, value: -25.700014000000003, _color: "#f50ae9", tween: "quadEaseInOut" },
-										{ time: 2.8, value: 0, _color: "#2e3712" }
 									]
 								}
 							]

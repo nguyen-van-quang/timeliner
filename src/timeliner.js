@@ -26,7 +26,6 @@ class LayerProp {
 }
 
 class Timeliner {
-	// #target;
 	#options;
 	#dispatcher;
 	#data;
@@ -38,27 +37,25 @@ class Timeliner {
 	#layer_cabinet;
 	#start_play = null;
 	#played_from = 0; // requires some more tweaking
-	#current_time_store;
 	#needs_resize = true;
 	#subDom = document.createElement('div');
 	#dom = document.createElement('div');
 	#vertical_scroll_bar = new ScrollBar(200, 10);
-	// #label_status = document.createElement('span');
+	#selected_timeline = null;
 
 	constructor(data, container, options) {
 		this.#dispatcher = new Dispatcher();
 		this.#data = new DataStore(data);
-		// this.#target = target;
+		this.#selected_timeline = this.#data.get('timelines:0');
 		this.#undo_manager = new UndoManager(this.#dispatcher);
 		this.#timeline_cabinet = new TimelineCabinet(this.#data.get('timelines'), this.#dispatcher);
-		this.#timeline_panel = new TimelinePanel(this.#data, this.#dispatcher);
-		this.#layer_cabinet = new LayerCabinet(this.#data, this.#dispatcher);
-		this.#current_time_store = this.#data.get('ui:currentTime');
+		this.#layer_cabinet = new LayerCabinet(this.#selected_timeline, this.#dispatcher);
+		this.#timeline_panel = new TimelinePanel(this.#selected_timeline, this.#dispatcher);
 
 
 		this.#options = options;
 		this.#dispatcher.on('keyframe', (layer, value) => {
-			const currentTime = data.get('ui:currentTime').value;
+			const currentTime = this.#selected_timeline.get('ui:currentTime').value;
 			const timeInLayer = utils.findTimeinLayer(layer, currentTime);
 			if (typeof (timeInLayer) === 'number') {
 				layer.values.splice(timeInLayer, 0, {
@@ -89,7 +86,7 @@ class Timeliner {
 			if (layer._mute) {
 				return;
 			}
-			const currentTime = data.get('ui:currentTime').value;
+			const currentTime = this.#selected_timeline.get('ui:currentTime').value;
 			const timeInLayer = utils.findTimeinLayer(layer, currentTime);
 			if (typeof (timeInLayer) === 'number') {
 				layer.values.splice(timeInLayer, 0, {
@@ -121,12 +118,12 @@ class Timeliner {
 			// no changes to tween will be made etc.
 		});
 		this.#dispatcher.on('ease', (layer, ease_type) => {
-			const currentTime = data.get('ui:currentTime').value;
+			const currentTime = this.#selected_timeline.get('ui:currentTime').value;
 			const timeInLayer = utils.timeAtLayer(layer, currentTime);
 			if (timeInLayer && timeInLayer.entry) {
 				timeInLayer.entry.tween = ease_type;
 			}
-			this.#undo_manager.save(new UndoState(data, 'Add Ease'));
+			this.#undo_manager.save(new UndoState(this.#data, 'Add Ease'));
 			this.repaintAll();
 		});
 		this.#dispatcher.on('controls.toggle_play', () => {
@@ -152,7 +149,8 @@ class Timeliner {
 			this.setCurrentTime(0);
 		});
 		this.#dispatcher.on('time.update', (time) => {
-			this.#current_time_store.value = time;
+			this.#selected_timeline.get('ui:currentTime').value = time;
+			this.repaintAll();
 		});
 		this.#dispatcher.on('totalTime.update', (value) => {
 			// context.totalTime = value;
@@ -192,11 +190,11 @@ class Timeliner {
 		});
 		// this.#dispatcher.on('status', this.setStatus.bind(this));
 		this.#dispatcher.on('timeline.select', (timeline) => {
-			console.log('timeline selected', timeline);
-			this.#layer_cabinet.setState(timeline.get('targets'));
-			this.#timeline_panel.setState(timeline.get('targets'));
+			this.#timeline_panel.data = timeline;
+			this.#layer_cabinet.data = timeline;
+			this.#selected_timeline = timeline;
 		});
-		
+
 
 		this.#vertical_scroll_bar.onScroll.do((type, scrollTo) => {
 			switch (type) {
@@ -207,16 +205,13 @@ class Timeliner {
 			}
 		});
 
-		// this.#label_status.textContent = 'hello!';
-		// this.#label_status.style.marginLeft = '10px';
-
 		this.#subDom.appendChild(this.#timeline_cabinet.dom);
 		this.#subDom.appendChild(this.#layer_cabinet.dom);
 		this.#subDom.appendChild(this.#timeline_panel.dom);
 		// this.#subDom.appendChild(this.#vertical_scroll_bar.dom);
 
 		this.#dom.appendChild(this.#subDom);
-		
+
 		style(this.#dom, {
 			position: 'relative',
 			margin: 0,
@@ -233,15 +228,11 @@ class Timeliner {
 		this.paint();
 	}
 
-	// setStatus(text) {
-	// 	this.#label_status.textContent = text;
-	// };
-
 	startPlaying() {
-		this.#start_play = performance.now() - this.#data.get('ui:currentTime').value * 1000;
+		this.#start_play = performance.now() - this.#selected_timeline.get('ui:currentTime').value * 1000;
 		this.#layer_cabinet.setControlStatus(true);
 		if (this.#options?.dispatcherEventCb) {
-			if (this.#data.get('ui:currentTime').value > 0) {
+			if (this.#selected_timeline.get('ui:currentTime').value > 0) {
 				this.#options.dispatcherEventCb("resume");
 			} else {
 				this.#options.dispatcherEventCb("start");
@@ -259,13 +250,13 @@ class Timeliner {
 
 	setCurrentTime(time) {
 		time = Math.max(0, time);
-		this.#current_time_store.value = time;
+		this.#selected_timeline.get('ui:currentTime').value = time;
 		if (this.#start_play) {
 			this.#start_play = performance.now() - time * 1000;
 		}
 		this.repaintAll();
 		if (this.#options?.dispatcherEventCb) {
-			this.#options.dispatcherEventCb("change-time", this.#current_time_store.value);
+			this.#options.dispatcherEventCb("change-time", this.#selected_timeline.get('ui:currentTime').value);
 		}
 	}
 
@@ -360,7 +351,7 @@ class Timeliner {
 	repaintAll() {
 		// const contentHeight = this.#layers.length * Settings.LINE_HEIGHT;
 		// this.#vertical_scroll_bar.setLength(Settings.TIMELINE_SCROLL_HEIGHT / contentHeight);
-		const currentTime = this.#data.get('ui:currentTime').value;
+		const currentTime = this.#selected_timeline.get('ui:currentTime').value;
 		this.#layer_cabinet.repaint(currentTime);
 		this.#timeline_panel.repaint(currentTime);
 	}
@@ -388,7 +379,7 @@ class Timeliner {
 			// height: Settings.height + 'px',
 			width: Settings.LEFT_PANE_WIDTH + 'px',
 			overflow: 'hidden',
-			border: '2px solid yellow'
+			// border: '2px solid yellow'
 		});
 		style(layerCabinet, {
 			position: 'absolute',
@@ -397,12 +388,12 @@ class Timeliner {
 			height: Settings.height + 'px',
 			width: Settings.LEFT_PANE_WIDTH + 'px',
 			overflow: 'hidden',
-			border: '2px solid yellow'
+			// border: '2px solid yellow'
 		});
 
 		style(panel, {
 			position: 'absolute',
-			left: Settings.LEFT_PANE_WIDTH + 'px',
+			left: 2 * Settings.LEFT_PANE_WIDTH + 'px',
 			top: '0px',
 			// border: '2px solid yellow'
 		});
@@ -429,7 +420,7 @@ class Timeliner {
 	getValueRanges(ranges, interval) {
 		interval = interval ? interval : 0.15;
 		ranges = ranges ? ranges : 2;
-		const currentTime = data.get('ui:currentTime').value;
+		const currentTime = this.#selected_timeline.get('ui:currentTime').value;
 		const values = [];
 		for (let u = -ranges; u <= ranges; u++) {
 			const o = {};

@@ -21,10 +21,18 @@ class TimelineCabinet {
     });
     for (let i = 0; i < this.#timelines.value.length; i++) {
       const liDom = document.createElement('li');
+      if (i === 0) {
+        liDom.classList.add('selected');
+      }
       liDom.textContent = `${this.#timelines.get(i).value.name}`;
       liDom.dataset.index = i;
       liDom.addEventListener('click', (e) => {
         this.#dispatcher.fire('timeline.select', this.#timelines.get(i));
+        const selected = this.#dom.querySelector('.selected');
+        if (selected) {
+          selected.classList.remove('selected');
+        }
+        liDom.classList.add('selected');
       });
       ulDom.appendChild(liDom);
     }

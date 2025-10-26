@@ -17,89 +17,20 @@ const operationBtnStyles = {
     padding: '3px 4px 3px 4px'
 };
 
-const timeline_01_data = [
-    {
-        id: "label01",
-        name: "Label",
-        animations: [
-            {
-                name: "x",
-                values: [
-                    { time: 0.1, value: 0, _color: "#893c0f", tween: "quadEaseIn" },
-                    { time: 3, value: 3.500023, _color: "#b074a0" }
-                ],
-                tmpValue: -0.5,
-				_color: "#8bd589"
-            },
-            {
-                name: "y",
-                values: [
-                    { time: 0.1, value: 0, _color: "#abac31", tween: "quadEaseOut" },
-                    { time: 0.5, value: -1.000001, _color: "#355ce8", tween: "quadEaseIn" },
-                    { time: 1.1, value: 0, _color: "#47e90", tween: "quadEaseOut" },
-                    { time: 1.7, value: -0.5, _color: "#f76bca", tween: "quadEaseOut" },
-                    { time: 2.3, value: 0, _color: "#d59cfd" }
-                ],
-                tmpValue: -0.5,
-				_color: "#8bd589"
-            },
-            {
-                name: "rotate",
-                values: [
-                    { time: 0.1, value: -25.700014000000003, _color: "#f50ae9", tween: "quadEaseInOut" },
-                    { time: 2.8, value: 0, _color: "#2e3712" }
-                ],
-                tmpValue: -0.5,
-				_color: "#8bd589"
-            }
-        ]
-    },
-    {
-        id: "image01",
-        name: "Image",
-        animations: [
-            {
-                name: "x",
-                values: [
-                    { time: 0.1, value: 0, _color: "#893c0f", tween: "quadEaseIn" },
-                    { time: 3, value: 3.500023, _color: "#b074a0" }
-                ]
-            },
-            {
-                name: "y",
-                values: [
-                    { time: 0.1, value: 0, _color: "#abac31", tween: "quadEaseOut" },
-                    { time: 0.5, value: -1.000001, _color: "#355ce8", tween: "quadEaseIn" },
-                    { time: 1.1, value: 0, _color: "#47e90", tween: "quadEaseOut" },
-                    { time: 1.7, value: -0.5, _color: "#f76bca", tween: "quadEaseOut" },
-                    { time: 2.3, value: 0, _color: "#d59cfd" }
-                ]
-            },
-            {
-                name: "rotate",
-                values: [
-                    { time: 0.1, value: -25.700014000000003, _color: "#f50ae9", tween: "quadEaseInOut" },
-                    { time: 2.8, value: 0, _color: "#2e3712" }
-                ]
-            }
-        ]
-    }
-]
-
 class LayerCabinet {
     #dataProx;
-    #targets;
+    #data;
     #dom;
     // #domOperation;
-    #domLayerScroll;
+    #domTargets;
     #dispatcher;
     #isPlaying = false;
-    // #currentTimeStore;
+    #currentTimeStore;
     #playBtn;
     #stopBtn;
     #undoBtn;
     #redoBtn;
-    #domTop;
+    #domOperations;
     #domRange;
     #draggingRange = 0;
     #layer_uis = [];
@@ -110,21 +41,25 @@ class LayerCabinet {
     #subUlDom2;
 
 
-    constructor(targets, dispatcher) {
-        // this.#data = targets;
-        this.#targets = targets.get('layers');
+    constructor(data, dispatcher) {
+        // this.#data = data;
+        this.#data = data;
         this.#dispatcher = dispatcher;
-        // this.#currentTimeStore = targets.get('ui:currentTime');
+        // this.#currentTimeStore = data.get('ui:currentTime');
         this.#dom = document.createElement('div');
+        style(this.#dom, {
+            borderLeft: '1px solid ' + Theme.b,
+            borderRight: '1px solid ' + Theme.b
+        });
 
-        this.#domTop = document.createElement('div');
+        this.#domOperations = document.createElement('div');
         // this.#domTop.style.cssText = 'margin: 0px; top: 0; left: 0; height: ' + LayoutConstants.MARKER_TRACK_HEIGHT + 'px';
-        style(this.#domTop, {
+        style(this.#domOperations, {
             margin: '0px',
             top: '0px',
             left: '0px',
-            height: LayoutConstants.MARKER_TRACK_HEIGHT + 'px',
-            background: 'red',
+            height: LayoutConstants.MARKER_TRACK_HEIGHT / 2 + 'px',
+            // background: 'red',
             opacity: '0.5',
             border: '2px solid gray'
         });
@@ -155,25 +90,26 @@ class LayerCabinet {
             if (!this.#draggingRange) return;
             this.changeRange();
         });
-        this.#domTop.appendChild(this.#domRange);
+        this.#domOperations.appendChild(this.#domRange);
 
-        this.#domTop.appendChild(this.initDomOperation(dispatcher));
+        this.#domOperations.appendChild(this.initDomOperation(dispatcher));
 
-        this.#domLayerScroll = document.createElement('div');
-        style(this.#domLayerScroll, {
-            border: '2px solid purple',
-            // background: 'blue',
-            // opacity: '0.4',
-        })
-        this.initDomLayerScroll(this.#domLayerScroll);
-        this.#dom.appendChild(this.#domLayerScroll);
+        this.#domTargets = document.createElement('div');
+        style(this.#domTargets, {
+            position: 'absolute',
+            top: LayoutConstants.MARKER_TRACK_HEIGHT + 'px',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            overflow: 'hidden'
+        });
+        this.#domTargets.id = 'layer_cabinet';
 
-        this.#dom.appendChild(this.#domTop);
+        // re-uncomment below
+        this.#dom.appendChild(this.#domTargets);
+        // this.#dom.appendChild(this.#domOperations);
 
-        // this.initTreeView();
-        // this.initTreeView2(-10);
-
-        // this.setState(this.#targets);
+        this.setState(this.#data);
         // this.repaint();
     }
 
@@ -200,7 +136,7 @@ class LayerCabinet {
         this.#subUlDom = document.createElement('ul');
         detailDom.appendChild(this.#subUlDom);
         this.#treeViewLayer.appendChild(liDom);
-        this.#domLayerScroll.appendChild(this.#treeViewLayer);
+        this.#domTargets.appendChild(this.#treeViewLayer);
     }
 
     initTreeView2(offset) {
@@ -227,7 +163,7 @@ class LayerCabinet {
         this.#subUlDom2 = document.createElement('ul');
         detailDom.appendChild(this.#subUlDom2);
         treeViewLayer.appendChild(liDom);
-        this.#domLayerScroll.appendChild(treeViewLayer);
+        this.#domTargets.appendChild(treeViewLayer);
     }
 
     initDomOperation(dispatcher) {
@@ -271,17 +207,17 @@ class LayerCabinet {
         return domOperation;
     }
 
-    initDomLayerScroll(domLayerScroll) {
-        style(domLayerScroll, {
-            position: 'absolute',
-            top: LayoutConstants.MARKER_TRACK_HEIGHT + 'px',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            overflow: 'hidden'
-        });
-        domLayerScroll.id = 'layer_cabinet';
-    }
+    // initDomLayerScroll(domLayerScroll) {
+    //     style(domLayerScroll, {
+    //         position: 'absolute',
+    //         top: LayoutConstants.MARKER_TRACK_HEIGHT + 'px',
+    //         left: 0,
+    //         right: 0,
+    //         bottom: 0,
+    //         overflow: 'hidden'
+    //     });
+    //     domLayerScroll.id = 'layer_cabinet';
+    // }
 
     // setState(state) {
     //     this.#layer_store = state;
@@ -310,10 +246,10 @@ class LayerCabinet {
     // nen doi ten thanh setData
     setState(dataProx) {
         this.#dataProx = dataProx;
-        while (this.#domLayerScroll.firstChild) {
-            this.#domLayerScroll.removeChild(this.#domLayerScroll.firstChild);
+        while (this.#domTargets.firstChild) {
+            this.#domTargets.removeChild(this.#domTargets.firstChild);
         }
-        const targets = this.#dataProx;
+        const targets = this.#dataProx.get('targets');
         for (let i = 0; i < targets.value.length; i++) {
             const target = targets.get(i);
             console.log('target', target);
@@ -355,7 +291,7 @@ class LayerCabinet {
             }
 
             treeViewLayer.appendChild(liDom);
-            this.#domLayerScroll.appendChild(treeViewLayer);
+            this.#domTargets.appendChild(treeViewLayer);
 
 
             // const treeViewLayer = document.createElement('ul');
@@ -440,7 +376,13 @@ class LayerCabinet {
     // }
 
     scrollTo = function (x) {
-        this.#domLayerScroll.scrollTop = x * (this.#domLayerScroll.scrollHeight - this.#domLayerScroll.clientHeight);
+        this.#domTargets.scrollTop = x * (this.#domTargets.scrollHeight - this.#domTargets.clientHeight);
+    }
+
+    set data(data) {
+        this.#data = data;
+        // should remove setState here later
+        this.setState(this.#data);
     }
 
     get dom() {
@@ -448,13 +390,13 @@ class LayerCabinet {
     }
 
     addLayer(layer) {
-        this.#targets.push(layer);
+        this.#data.push(layer);
     }
 
     removeLayer(layer) {
-        const index = this.#targets.indexOf(layer);
+        const index = this.#data.indexOf(layer);
         if (index > -1) {
-            this.#targets.splice(index, 1);
+            this.#data.splice(index, 1);
         }
     }
 

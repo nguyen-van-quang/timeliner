@@ -48,6 +48,9 @@ const timelinerCSS = `
     .timeline-cabinet {
 
     }
+    .timeline-cabinet .selected {
+        background-color: gray;
+    }
     .timeline-cabinet li:hover {
          background-color: gray;
     }

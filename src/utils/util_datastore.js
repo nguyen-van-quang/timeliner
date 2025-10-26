@@ -7,6 +7,17 @@ import { Do } from './do.js'
 
 // Data Store with a source of truth
 function DataStore(data) {
+	for (let i = 0; i < data.timelines.length; i++) {
+		let timeline = data.timelines[i];
+		if (!timeline.ui) {
+			timeline.ui = {
+				currentTime: 0,
+				totalTime: LayoutConstants.default_length,
+				scrollTime: 0,
+				timeScale: LayoutConstants.time_scale
+			};
+		}
+	}
 	this.data = data;
 	this.DELIMITER = ':';
 	// this.blank();
@@ -23,7 +34,7 @@ function DataStore(data) {
 // 	});
 // };
 
-DataStore.prototype.blank = function() {
+DataStore.prototype.blank = function () {
 	var data = {};
 
 	data.version = package_json.version;
@@ -42,26 +53,26 @@ DataStore.prototype.blank = function() {
 	this.data = data;
 };
 
-DataStore.prototype.update = function() {
+DataStore.prototype.update = function () {
 	var data = this.data;
 
 	data.version = package_json.version;
 	data.modified = new Date().toString();
 };
 
-DataStore.prototype.setJSONString = function(data) {
+DataStore.prototype.setJSONString = function (data) {
 	this.data = JSON.parse(data);
 };
 
-DataStore.prototype.setJSON = function(data) {
+DataStore.prototype.setJSON = function (data) {
 	this.data = data;
 };
 
-DataStore.prototype.getJSONString = function(format) {
+DataStore.prototype.getJSONString = function (format) {
 	return JSON.stringify(this.data, null, format);
 };
 
-DataStore.prototype.getValue = function(paths) {
+DataStore.prototype.getValue = function (paths) {
 	var descend = paths.split(this.DELIMITER);
 	var reference = this.data;
 	for (var i = 0, il = descend.length; i < il; i++) {
@@ -75,21 +86,21 @@ DataStore.prototype.getValue = function(paths) {
 	return reference;
 };
 
-DataStore.prototype.setValue = function(paths, value) {
+DataStore.prototype.setValue = function (paths, value) {
 	var descend = paths.split(this.DELIMITER);
 	var reference = this.data;
 	var path;
-	for (var i = 0, il = descend.length - 1; path = descend[i], i < il ; i++) {
+	for (var i = 0, il = descend.length - 1; path = descend[i], i < il; i++) {
 		reference = reference[path];
 	}
 
 	reference[path] = value;
-	
+
 	// eventBus.emit('datastore:update', { path: paths, value: value });
 	// eventBus.emit(`datastore:update:${paths}`, value);
 };
 
-DataStore.prototype.get = function(path, suffix) {
+DataStore.prototype.get = function (path, suffix) {
 	if (suffix) path = suffix + this.DELIMITER + path;
 	return new DataProx(this, path);
 };
@@ -108,7 +119,7 @@ DataProx.prototype = {
 	}
 };
 
-DataProx.prototype.get = function(path) {
+DataProx.prototype.get = function (path) {
 	return this.store.get(path, this.path);
 };
 
