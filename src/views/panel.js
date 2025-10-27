@@ -12,45 +12,41 @@ const { proxy_ctx, style } = utils;
 const LINE_HEIGHT = LayoutConstants.LINE_HEIGHT,
 	DIAMOND_SIZE = LayoutConstants.DIAMOND_SIZE,
 	TIME_SCROLLER_HEIGHT = 35,
-	MARKER_TRACK_HEIGHT = 25,
+	MARKER_TRACK_HEIGHT = 38,
 	LEFT_PANE_WIDTH = LayoutConstants.LEFT_PANE_WIDTH,
 	TOP = 10;
 
 class EasingRect {
 	#timeliner;
-	#ctx;
-	#ctx_wrap;
 	#track_canvas;
 	#x1;
 	#y1;
 	#x2;
 	#y2;
-	#frame;
+	#frame1;
 	#frame2;
 
-	constructor(timeliner, ctx, ctx_wrap, track_canvas, x1, y1, x2, y2, frame, frame2) {
+	constructor(timeliner, track_canvas, x1, y1, x2, y2, frame1, frame2) {
 		this.#timeliner = timeliner;
-		this.#ctx = ctx;
-		this.#ctx_wrap = ctx_wrap;
 		this.#track_canvas = track_canvas;
 		this.#x1 = x1;
 		this.#y1 = y1;
 		this.#x2 = x2;
 		this.#y2 = y2;
-		this.#frame = frame;
+		this.#frame1 = frame1;
 		this.#frame2 = frame2;
 	}
 
-	path() {
-		this.#ctx_wrap.beginPath()
-			.rect(this.#x1, this.#y1, this.#x2 - this.#x1, this.#y2 - this.#y1)
-			.closePath();
+	path(ctx) {
+		ctx.beginPath();
+		ctx.rect(this.#x1, this.#y1, this.#x2 - this.#x1, this.#y2 - this.#y1);
+		ctx.closePath();
 	}
 
-	paint() {
-		this.path();
-		this.#ctx.fillStyle = this.#frame._color;
-		this.#ctx.fill();
+	paint(ctx) {
+		this.path(ctx);
+		ctx.fillStyle = this.#frame1._color;
+		ctx.fill();
 	}
 
 	mouseover() {
@@ -70,11 +66,20 @@ class EasingRect {
 		let t1 = this.x_to_time(this.#x1 + e.dx);
 		t1 = Math.max(0, t1);
 		// TODO limit moving to the next neighbor
-		this.#frame.time = t1;
+		this.#frame1.time = t1;
 
 		let t2 = this.x_to_time(this.#x2 + e.dx);
 		t2 = Math.max(0, t2);
 		this.#frame2.time = t2;
+	}
+
+	get position() {
+		return {
+			x1: this.#x1,
+			y1: this.#y1,
+			x2: this.#x2,
+			y2: this.#y2
+		}
 	}
 }
 
@@ -154,8 +159,6 @@ class TimelinePanel {
 	#ctx_wrap;
 	#currentTime; // measured in seconds, technically it could be in frames or  have it in string format (0:00:00:1-60)
 	#LEFT_GUTTER = 20;
-	#x;
-	#y;
 	#needsRepaint = false;
 	#renderItems = [];
 	#time_scale = LayoutConstants.time_scale;
@@ -188,9 +191,10 @@ class TimelinePanel {
 			this.#canvasBounds = this.#track_canvas.getBoundingClientRect();
 			const mx = e.clientX - this.#canvasBounds.left;
 			const my = e.clientY - this.#canvasBounds.top;
-			const track = this.y_to_track(my);
+			const layer = this.y_to_track(my);
 			// const s = this.x_to_time(mx);
-			this.#dispatcher.fire('keyframe', this.#targets[track], this.#currentTime);
+			console.log('layer: ', layer);
+			this.#dispatcher.fire('keyframe', layer, this.#currentTime);
 		});
 		this.#track_canvas.addEventListener('mouseout', () => {
 			this.#pointer = null;
@@ -199,7 +203,7 @@ class TimelinePanel {
 			position: 'absolute',
 			top: TIME_SCROLLER_HEIGHT + 'px',
 			left: '0px',
-			// border: '2px solid green'
+			// border: '1px solid green'
 		});
 
 		this.#scroll_canvas = new Canvas(LayoutConstants.width, TIME_SCROLLER_HEIGHT);
@@ -225,14 +229,7 @@ class TimelinePanel {
 
 		this.#time_scale = LayoutConstants.time_scale;
 
-		// TODO: should be only listen on the TimelinePanel
 		this.#track_canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
-		// document.addEventListener('mousemove', function(e) {
-		// 	console.log('mousedownItem: ', this.#mousedownItem);
-		// 	console.log('mousedown2: ', this.#mousedown2);
-		// 	console.log('mousemove {x: ', e.clientX, ', y: ', e.clientY, '}');
-		// }.bind(this));
-
 
 		this.repaint();
 
@@ -345,7 +342,7 @@ class TimelinePanel {
 					const y1 = y + 2;
 					const y2 = y + LINE_HEIGHT - 2;
 
-					this.#renderItems.push(new EasingRect(this, this.#ctx, this.#ctx_wrap, this.#track_canvas, x1, y1, x2, y2, frame1, frame2));
+					this.#renderItems.push(new EasingRect(this, this.#track_canvas, x1, y1, x2, y2, frame1, frame2));
 				}
 
 				for (let j = 0; j < frames.length; j++) {
@@ -358,12 +355,11 @@ class TimelinePanel {
 
 		for (let i = 0, il = this.#renderItems.length; i < il; i++) {
 			let item = this.#renderItems[i];
-			item.paint();
-			// item.paint(this.#ctx_wrap);
+			item.paint(this.#ctx);
 		}
 	}
 
-	time_scaled() {
+	timeScaled() {
 		/*
 			* Subdivison LOD
 			* time_scale refers to number of pixels per unit
@@ -376,10 +372,10 @@ class TimelinePanel {
 	}
 
 	setTimeScale() {
-		let v = this.#data.get('ui:timeScale').value;
+		const v = this.#data.get('ui:timeScale').value;
 		if (this.#time_scale !== v) {
 			this.#time_scale = v;
-			this.time_scaled();
+			this.timeScaled();
 		}
 	}
 
@@ -413,7 +409,7 @@ class TimelinePanel {
 		this.#ctx_wrap
 			.save()
 			.scale(this.#dpr, this.#dpr)
-			.translate(0, MARKER_TRACK_HEIGHT + 15)
+			.translate(0, MARKER_TRACK_HEIGHT)
 			.beginPath()
 			.rect(0, 0, LayoutConstants.width, this.#SCROLL_HEIGHT)
 			.translate(-this.#scrollLeft, -this.#scrollTop)
@@ -429,12 +425,12 @@ class TimelinePanel {
 		}
 		this.#scroll_canvas.repaint();
 
-		// this.setTimeScale();
+		this.setTimeScale();
 
 		this.#currentTime = this.#data.get('ui:currentTime').value;
 		this.#frame_start = this.#data.get('ui:scrollTime').value;
+		console.log('this.#frame_start: ', this.#frame_start);
 
-		/**************************/
 		// background
 		this.#ctx.fillStyle = Theme.a;
 		this.#ctx.clearRect(0, 0, this.#track_canvas.width, this.#track_canvas.height);
@@ -450,24 +446,26 @@ class TimelinePanel {
 		const offsetUnits = (this.#frame_start * this.#time_scale) % units;
 		let count = (width - this.#LEFT_GUTTER + offsetUnits) / units;
 
-		// labels only
 		for (let i = 0; i < count; i++) {
-			this.#x = i * units + this.#LEFT_GUTTER - offsetUnits;
-
-			// vertical lines
+			const x = i * units + this.#LEFT_GUTTER - offsetUnits;
+			// draw vertical lines
 			this.#ctx.strokeStyle = Theme.b;
 			this.#ctx.beginPath();
-			this.#ctx.moveTo(this.#x, 0);
-			this.#ctx.lineTo(this.#x, height);
+			this.#ctx.moveTo(x, 0);
+			this.#ctx.lineTo(x, height);
 			this.#ctx.stroke();
 
+			// draw time index
 			this.#ctx.fillStyle = Theme.d;
 			this.#ctx.textAlign = 'center';
-
 			let t = (i * units - offsetUnits) / this.#time_scale + this.#frame_start;
 			t = utils.format_friendly_seconds(t);
-			this.#ctx.fillText(t, this.#x, 38);
+			this.#ctx.fillText(t, x, MARKER_TRACK_HEIGHT);
 		}
+
+		this.#ctx.moveTo(13, 35);
+			this.#ctx.lineTo(13, 38);
+			this.#ctx.stroke();
 
 		units = this.#time_scale / this.#tickMark2;
 		count = (width - this.#LEFT_GUTTER + offsetUnits) / units;
@@ -476,9 +474,11 @@ class TimelinePanel {
 		for (let i = 0; i < count; i++) {
 			this.#ctx.strokeStyle = Theme.c;
 			this.#ctx.beginPath();
-			this.#x = i * units + this.#LEFT_GUTTER - offsetUnits;
-			this.#ctx.moveTo(this.#x, MARKER_TRACK_HEIGHT - 0);
-			this.#ctx.lineTo(this.#x, MARKER_TRACK_HEIGHT - 16);
+			const x = i * units + this.#LEFT_GUTTER - offsetUnits;
+			const y = MARKER_TRACK_HEIGHT - 29;
+			const h = 16;
+			this.#ctx.moveTo(x, y);
+			this.#ctx.lineTo(x, y + h);
 			this.#ctx.stroke();
 		}
 
@@ -491,16 +491,18 @@ class TimelinePanel {
 			if (i % mul === 0) continue;
 			this.#ctx.strokeStyle = Theme.c;
 			this.#ctx.beginPath();
-			this.#x = i * units + this.#LEFT_GUTTER - offsetUnits;
-			this.#ctx.moveTo(this.#x, MARKER_TRACK_HEIGHT - 0);
-			this.#ctx.lineTo(this.#x, MARKER_TRACK_HEIGHT - 10);
+			const x = i * units + this.#LEFT_GUTTER - offsetUnits;
+			const y = MARKER_TRACK_HEIGHT - 23;
+			const h = 10;
+			this.#ctx.moveTo(x, y);
+			this.#ctx.lineTo(x, y + h);
 			this.#ctx.stroke();
 		}
 
 		// Encapsulate a scroll rect for the layers
 		this.#ctx_wrap
 			.save()
-			.translate(0, MARKER_TRACK_HEIGHT + LINE_HEIGHT)
+			.translate(0, MARKER_TRACK_HEIGHT)
 			.beginPath()
 			.rect(0, 0, LayoutConstants.width, this.#SCROLL_HEIGHT)
 			.translate(-this.#scrollLeft, -this.#scrollTop)
@@ -508,44 +510,54 @@ class TimelinePanel {
 			.run(this.drawLayerContents.bind(this))
 			.restore();
 
-		// Current Marker / Cursor
+		//-----Current Marker------
 		this.#ctx.strokeStyle = 'red'; // Theme.c
-		this.#x = (this.#currentTime - this.#frame_start) * this.#time_scale + this.#LEFT_GUTTER;
-
+		const x = (this.#currentTime - this.#frame_start) * this.#time_scale + this.#LEFT_GUTTER;
 		const txt = utils.format_friendly_seconds(this.#currentTime);
 		const textWidth = this.#ctx.measureText(txt).width;
-
-		const base_line = MARKER_TRACK_HEIGHT - 5;
+		const base_line = MARKER_TRACK_HEIGHT - 18;
 		const half_rect = textWidth / 2 + 4;
-
+		// draw cursor vertical line
 		this.#ctx.beginPath();
-		this.#ctx.moveTo(this.#x, base_line);
-		this.#ctx.lineTo(this.#x, height);
+		this.#ctx.moveTo(x, base_line);
+		this.#ctx.lineTo(x, height);
 		this.#ctx.stroke();
-
-		this.#ctx.fillStyle = 'red'; // black
+		// draw cursor bound
+		this.#ctx.fillStyle = 'red';
 		this.#ctx.textAlign = 'center';
 		this.#ctx.beginPath();
-		this.#ctx.moveTo(this.#x, base_line + 5);
-		this.#ctx.lineTo(this.#x + 5, base_line);
-		this.#ctx.lineTo(this.#x + half_rect, base_line);
-		this.#ctx.lineTo(this.#x + half_rect, base_line - 14);
-		this.#ctx.lineTo(this.#x - half_rect, base_line - 14);
-		this.#ctx.lineTo(this.#x - half_rect, base_line);
-		this.#ctx.lineTo(this.#x - 5, base_line);
+		this.#ctx.moveTo(x, base_line + 5);
+		this.#ctx.lineTo(x + 5, base_line);
+		this.#ctx.lineTo(x + half_rect, base_line);
+		this.#ctx.lineTo(x + half_rect, base_line - 14);
+		this.#ctx.lineTo(x - half_rect, base_line - 14);
+		this.#ctx.lineTo(x - half_rect, base_line);
+		this.#ctx.lineTo(x - 5, base_line);
 		this.#ctx.closePath();
 		this.#ctx.fill();
-
+		// draw current time cursor
 		this.#ctx.fillStyle = 'white';
-		this.#ctx.fillText(txt, this.#x, base_line - 4);
+		this.#ctx.fillText(txt, x, base_line - 4);
 		this.#ctx.restore();
 
 		this.#needsRepaint = false;
 	}
 
-	y_to_track(y) {
-		if (y - (MARKER_TRACK_HEIGHT + 15) < 0) return -1;
-		return (y - (MARKER_TRACK_HEIGHT + 15) + this.#scrollTop) / LINE_HEIGHT | 0;
+	y_to_track(y) { 
+		if (y - MARKER_TRACK_HEIGHT < 0) {
+			return -1;
+		}
+		for(let i = 0; i < this.#renderItems.length; i++) {
+			const item = this.#renderItems[i];
+			if(item instanceof EasingRect) {
+				const y2 = item.position.y2
+				if(y <= y2 && y2 - y <= LINE_HEIGHT) {
+					return item;
+				}
+			}
+		}
+		return -1;
+		// return (y - MARKER_TRACK_HEIGHT + this.#scrollTop) / LINE_HEIGHT | 0;
 	}
 
 	x_to_time(x) {

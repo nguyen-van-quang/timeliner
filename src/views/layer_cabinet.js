@@ -105,9 +105,8 @@ class LayerCabinet {
         });
         this.#domTargets.id = 'layer_cabinet';
 
-        // re-uncomment below
         this.#dom.appendChild(this.#domTargets);
-        // this.#dom.appendChild(this.#domOperations);
+        this.#dom.appendChild(this.#domOperations);
 
         this.setState(this.#data);
         // this.repaint();

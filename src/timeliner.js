@@ -159,7 +159,7 @@ class Timeliner {
 		});
 		this.#dispatcher.on('update.scrollTime', (time) => {
 			time = Math.max(0, time);
-			this.#data.get('ui:scrollTime').value = time;
+			this.#selected_timeline.get('ui:scrollTime').value = time;
 			this.repaintAll();
 		});
 		// this.#dispatcher.on('target.notify', (name, value) => {
@@ -168,7 +168,7 @@ class Timeliner {
 		// 	}
 		// });
 		this.#dispatcher.on('update.scale', (timeScale) => {
-			this.#data.get('ui:timeScale').value = timeScale;
+			this.#selected_timeline.get('ui:timeScale').value = timeScale;
 			this.#timeline_panel.repaint();
 		});
 		this.#dispatcher.on('controls.undo', () => {
