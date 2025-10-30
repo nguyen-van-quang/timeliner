@@ -210,6 +210,32 @@ class Timeliner {
 			this.#timeline_panel.data = this.#selected_timeline;
 			// console.log('target.ui.expand: ', state)
 		});
+		this.#dispatcher.on('timeline.remove', (timeline) => {
+			let paths = timeline.path;
+			paths = paths.split(':');
+			const index = parseInt(paths[paths.length - 1]);
+			paths.splice(paths.length - 1, 1);
+			const timelines = this.#data.get(paths.join(':'));
+			timelines.value.splice(index, 1);
+			this.#undo_manager.save(new UndoState(this.#data, 'Remove Timeline'));
+			// trigger to reinit
+			// this.#timeline_cabinet = new TimelineCabinet(this.#data.get('timelines'), this.#dispatcher);
+			this.#timeline_cabinet.data = timelines.value;
+			this.#subDom.replaceChild(this.#timeline_cabinet.dom, this.#subDom.childNodes[0]);
+			// select another timeline
+			if (timelines.value.length > 0) {
+				this.#dispatcher.fire('timeline.select', timelines.get(0));
+				const firstLi = this.#timeline_cabinet.dom.querySelector('li');
+				if (firstLi) {
+					firstLi.classList.add('selected');
+				}
+			} else {
+				// no timelines left
+				this.#layer_cabinet.data = null;
+				this.#timeline_panel.data = null;
+			}
+			this.repaintAll();
+		});
 
 
 		this.#vertical_scroll_bar.onScroll.do((type, scrollTo) => {

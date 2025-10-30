@@ -48,16 +48,14 @@ class LayerCabinet {
         });
 
         this.#domOperations = document.createElement('div');
-        // this.#domTop.style.cssText = 'margin: 0px; top: 0; left: 0; height: ' + LayoutConstants.MARKER_TRACK_HEIGHT + 'px';
         style(this.#domOperations, {
             margin: '0px',
+            marginLeft: '5px',
             padding: '0px',
             top: '0px',
             left: '0px',
             height: LayoutConstants.MARKER_TRACK_HEIGHT / 2 + 'px',
-            // background: 'red',
             opacity: '0.5',
-            // border: '2px solid gray'
         });
 
         this.#domRange = document.createElement('input');
@@ -67,10 +65,10 @@ class LayerCabinet {
         this.#domRange.max = +1;
         this.#domRange.step = 0.125;
         style(this.#domRange, {
-            width: '90px',
+            top: '25px',
+            width: '230px',
+            padding: '0px',
             margin: '0px',
-            marginLeft: '2px',
-            marginRight: '2px',
         });
 
         this.#domRange.addEventListener('mousedown', () => {
@@ -113,14 +111,13 @@ class LayerCabinet {
         const domOperation = document.createElement('div');
         style(domOperation, {
             marginTop: '4px',
+            paddingLeft: '1px',
+            display: 'flex',
+            alignItems: 'center'
         });
-        const span = document.createElement('span');
-        span.style.width = '20px';
-        span.style.display = 'inline-block';
-        domOperation.appendChild(span);
 
         this.#playBtn = new IconButton(16, 'play', 'play', dispatcher);
-        style(this.#playBtn.dom, this.btnStyles, { marginTop: '2px' });
+        style(this.#playBtn.dom, btnStyles, { marginTop: '2px' });
         this.#playBtn.onClick(function (e) {
             e.preventDefault();
             dispatcher.fire('controls.toggle_play');
@@ -128,7 +125,7 @@ class LayerCabinet {
         domOperation.appendChild(this.#playBtn.dom);
 
         this.#stopBtn = new IconButton(16, 'stop', 'stop', dispatcher);
-        style(this.#stopBtn.dom, this.btnStyles, { marginTop: '2px' });
+        style(this.#stopBtn.dom, btnStyles, { marginTop: '2px' });
         this.#stopBtn.onClick(function (e) {
             dispatcher.fire('controls.stop');
         });
@@ -163,7 +160,7 @@ class LayerCabinet {
             style(treeViewLayer, {
                 margin: '0px',
                 padding: '0px',
-                paddingLeft: '15px'
+                paddingLeft: '5px'
             })
             addClass(treeViewLayer, 'tree-animation');
 

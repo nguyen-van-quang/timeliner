@@ -29,11 +29,12 @@ class LayerView {
             height: (LayoutConstants.LINE_HEIGHT - 1) + 'px',
             color: Theme.c,
             display: 'flex',
-            alignItems: 'center'
+            alignItems: 'center',
+            justifyContent: 'space-between'
         });
 
         this.#label = document.createElement('span');
-        this.#label.style.cssText = 'font-size: 12px; padding: 4px;';
+        this.#label.style.cssText = 'font-size: 12px; padding: 4px; width: 45px; overflow: hidden; text-overflow: ellipsis;';
         this.#label.textContent = this.#data.value.name;
         this.#label.addEventListener('click', function (e) {
             // context.dispatcher.fire('label', channelName);
@@ -49,7 +50,8 @@ class LayerView {
             dispatcher.fire('value.change', this.#data.value, value, done);
         });
         style(this.#number.dom, {
-            // float: 'right'
+            float: 'right',
+            width: '35px',
         });
         this.#dom.appendChild(this.#number.dom);
 
@@ -76,7 +78,7 @@ class LayerView {
 
         const remove_layer_btn = document.createElement('button');
         remove_layer_btn.innerHTML = '&minus;';
-        remove_layer_btn.style.cssText = 'color: ' + Theme.b + '; background: none; font-size: 16px; padding: 0px; font-family: monospace; float: right; width: 20px; height: ' + (LayoutConstants.LINE_HEIGHT - 5) + 'px; border-style:none; outline: none;';
+        remove_layer_btn.style.cssText = 'color: ' + Theme.b + '; background: none; font-size: 12px; padding: 0px; font-family: monospace; float: right; width: 20px; height: ' + height + 'px; border-style:none; outline: none;';
         remove_layer_btn.addEventListener('click', (e) => {
             dispatcher.fire('layer.remove', this.#data);
         });

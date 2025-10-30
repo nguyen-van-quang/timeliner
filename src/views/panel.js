@@ -200,7 +200,7 @@ class TimelinePanel {
 			const layer = this.y_to_track(my);
 			// const s = this.x_to_time(mx);
 			console.log('layer: ', layer);
-			if(typeof layer === 'object') {
+			if (typeof layer === 'object') {
 				this.#dispatcher.fire('keyframe', layer, this.#currentTime);
 			}
 		});
@@ -310,41 +310,39 @@ class TimelinePanel {
 			return;
 		}
 
-		console.log('this.#track_canvas.getBoundingClientRect(): ', this.#track_canvas.getBoundingClientRect())
-
-		// horizontal Layer lines
-		let next_target_gap = 0;
-		for (let i = 0; i < this.#targets.length; i++) {
+		// Draw horizontal Layer lines
+		for (let i = 0, next_target_gap = 0; i < this.#targets.length; i++) {
 			const layers = this.#targets[i].layers;
-			for (let j = 0; j <= layers.length + 1; j++) {
+			this.#ctx.strokeStyle = Theme.b;
+			next_target_gap += LINE_HEIGHT;
+			let y = next_target_gap;
+			y = ~~y - 0.5;
+			this.#ctx.beginPath();
+			this.#ctx_wrap
+				.moveTo(0, y)
+				.lineTo(LayoutConstants.width, y)
+				.stroke();
+			if (this.#targets[i].ui.expand === false) {
+				continue;
+			}
+			for (let j = 1; j <= layers.length; j++) {
 				this.#ctx.strokeStyle = Theme.b;
 				this.#ctx.beginPath();
-				let y = next_target_gap + j * LINE_HEIGHT;
+				next_target_gap += LINE_HEIGHT;
+				let y = next_target_gap;
 				y = ~~y - 0.5;
 				this.#ctx_wrap
 					.moveTo(0, y)
 					.lineTo(LayoutConstants.width, y)
 					.stroke();
+					
 			}
-			next_target_gap += (layers.length + 2) * LINE_HEIGHT;
 		}
-		// const noLines = this.#track_canvas.height / LINE_HEIGHT;
-		// for (let i = 0; i < noLines; i++) {
-		// 	this.#ctx.strokeStyle = Theme.b;
-		// 		this.#ctx.beginPath();
-		// 		let y = i * LINE_HEIGHT;
-		// 		y = ~~y - 0.5;
-		// 		this.#ctx_wrap
-		// 			.moveTo(0, y)
-		// 			.lineTo(LayoutConstants.width, y)
-		// 			.stroke();
-		// }
 
 		// Draw Easing Rects
-		next_target_gap = 0;
-		for (let i = 0; i < this.#targets.length; i++) {
+		for (let i = 0, next_target_gap = 0; i < this.#targets.length; i++) {
 			next_target_gap += LINE_HEIGHT;
-			if(!this.#targets[i].ui.expand) {
+			if (!this.#targets[i].ui.expand) {
 				continue;
 			}
 			const layers = this.#targets[i].layers;
@@ -473,8 +471,8 @@ class TimelinePanel {
 		for (let i = 0; i < count; i++) {
 			const x = i * units + this.#LEFT_GUTTER - offsetUnits;
 			// draw vertical lines
-			// this.#ctx.strokeStyle = Theme.b;
-			// this.#ctx.beginPath();
+			this.#ctx.strokeStyle = Theme.b;
+			this.#ctx.beginPath();
 			// this.#ctx.moveTo(x, 0);
 			// this.#ctx.lineTo(x, height);
 			// this.#ctx.stroke();
@@ -488,8 +486,8 @@ class TimelinePanel {
 		}
 
 		this.#ctx.moveTo(13, 35);
-			this.#ctx.lineTo(13, 38);
-			this.#ctx.stroke();
+		this.#ctx.lineTo(13, 38);
+		this.#ctx.stroke();
 
 		units = this.#time_scale / this.#tickMark2;
 		count = (width - this.#LEFT_GUTTER + offsetUnits) / units;
@@ -567,15 +565,15 @@ class TimelinePanel {
 		this.#needsRepaint = false;
 	}
 
-	y_to_track(y) { 
+	y_to_track(y) {
 		if (y - MARKER_TRACK_HEIGHT < 0) {
 			return -1;
 		}
-		for(let i = 0; i < this.#renderItems.length; i++) {
+		for (let i = 0; i < this.#renderItems.length; i++) {
 			const item = this.#renderItems[i];
-			if(item instanceof EasingRect) {
+			if (item instanceof EasingRect) {
 				const y2 = item.position.y2 + MARKER_TRACK_HEIGHT
-				if(y <= y2 && y2 - y <= LINE_HEIGHT) {
+				if (y <= y2 && y2 - y <= LINE_HEIGHT) {
 					return item.layerData;
 				}
 			}
