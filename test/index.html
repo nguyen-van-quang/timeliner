@@ -49,6 +49,9 @@
 						{
 							id: "label01",
 							name: "Label 01",
+							ui: {
+								expand: false
+							},
 							layers: [
 								{
 									name: "x",
@@ -79,6 +82,42 @@
 						{
 							id: "image01",
 							name: "Image 01",
+							ui: {
+								expand: true
+							},
+							layers: [
+								{
+									name: "x",
+									frames: [
+										{ time: 0.1, value: 0, _color: "#893c0f", tween: "quadEaseIn" },
+										{ time: 3, value: 3.500023, _color: "#b074a0" }
+									]
+								},
+								{
+									name: "y",
+									frames: [
+										{ time: 0.1, value: 0, _color: "#abac31", tween: "quadEaseOut" },
+										{ time: 0.5, value: -1.000001, _color: "#355ce8", tween: "quadEaseIn" },
+										{ time: 1.1, value: 0, _color: "#47e90", tween: "quadEaseOut" },
+										{ time: 1.7, value: -0.5, _color: "#f76bca", tween: "quadEaseOut" },
+										{ time: 2.3, value: 0, _color: "#d59cfd" }
+									]
+								},
+								{
+									name: "rotate",
+									frames: [
+										{ time: 0.1, value: -25.700014000000003, _color: "#f50ae9", tween: "quadEaseInOut" },
+										{ time: 2.8, value: 0, _color: "#2e3712" }
+									]
+								}
+							]
+						},
+						{
+							id: "image01",
+							name: "Image 01",
+							ui: {
+								expand: true
+							},
 							layers: [
 								{
 									name: "x",
@@ -121,6 +160,9 @@
 						{
 							id: "label01",
 							name: "Label 02",
+							ui: {
+								expand: true
+							},
 							layers: [
 								{
 									name: "x",
@@ -151,6 +193,9 @@
 						{
 							id: "image01",
 							name: "Image 02",
+							ui: {
+								expand: true
+							},
 							layers: [
 								{
 									name: "x",
@@ -178,7 +223,6 @@
 
 		const timelinerContainer = document.getElementById('timeliner');
 		const timeliner = new Timeliner(sample_data_01, timelinerContainer);
-		// timeliner.loadData(sample_data_01);
 
 		// Use ResizeObserver to watch for size changes
 		const resizeObserver = new ResizeObserver(entries => {
@@ -213,6 +257,7 @@
 		}
 
 		animate();
+		window.timeliner = timeliner;
 	</script>
 </body>
 

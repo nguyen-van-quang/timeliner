@@ -52,32 +52,43 @@ class Timeliner {
 		this.#layer_cabinet = new LayerCabinet(this.#selected_timeline, this.#dispatcher);
 		this.#timeline_panel = new TimelinePanel(this.#selected_timeline, this.#dispatcher);
 
-
 		this.#options = options;
 		this.#dispatcher.on('keyframe', (layer, value) => {
 			const currentTime = this.#selected_timeline.get('ui:currentTime').value;
 			const timeInLayer = utils.findTimeinLayer(layer, currentTime);
 			if (typeof (timeInLayer) === 'number') {
-				layer.values.splice(timeInLayer, 0, {
+				layer.frames.splice(timeInLayer, 0, {
 					time: currentTime,
 					value: value,
 					_color: '#' + (Math.random() * 0xffffff | 0).toString(16)
 				});
-				undo_manager.save(new UndoState(data, 'Add Keyframe'));
+				this.#undo_manager.save(new UndoState(this.#data, 'Add Keyframe'));
 			} else {
 				console.log('remove from index', timeInLayer);
-				layer.values.splice(timeInLayer.index, 1);
-				undo_manager.save(new UndoState(data, 'Remove Keyframe'));
+				layer.frames.splice(timeInLayer.index, 1);
+				this.#undo_manager.save(new UndoState(this.#data, 'Remove Keyframe'));
 			}
-			repaintAll();
+			this.repaintAll();
 		});
 		this.#dispatcher.on('layer.remove', (layer) => {
-			const index = this.#layers.indexOf(layer);
-			if (index > -1) {
-				this.#layers.splice(index, 1);
-				this.#undo_manager.save(new UndoState(this.#data, 'Remove Layer'));
-				repaintAll();
+			let paths = layer.path;
+			paths = paths.split(':');
+			const index = parseInt(paths[paths.length - 1]);
+			paths.splice(paths.length - 1, 1);
+			const layers = this.#data.get(paths.join(':'));
+			layers.value.splice(index, 1);
+			if(layers.value.length == 0) {
+				const index = parseInt(paths[paths.length -2]);
+				paths.splice(paths.length -2, 2);
+				const targets = this.#data.get(paths.join(':'));
+				targets.value.splice(index, 1);
 			}
+			this.#undo_manager.save(new UndoState(this.#data, 'Remove Layer'));
+			// trigger to reinit
+			// this.#layer_cabinet.createLayers(this.#selected_timeline);
+			this.#layer_cabinet.data = this.#selected_timeline;
+
+			this.repaintAll();
 		});
 		this.#dispatcher.on('keyframe.move', (layer, value) => {
 			this.#undo_manager.save(new UndoState(this.#data, 'Move Keyframe'));
@@ -89,18 +100,18 @@ class Timeliner {
 			const currentTime = this.#selected_timeline.get('ui:currentTime').value;
 			const timeInLayer = utils.findTimeinLayer(layer, currentTime);
 			if (typeof (timeInLayer) === 'number') {
-				layer.values.splice(timeInLayer, 0, {
+				layer.frames.splice(timeInLayer, 0, {
 					time: currentTime,
 					value: value,
 					_color: '#' + (Math.random() * 0xffffff | 0).toString(16)
 				});
 				if (!dont_save) {
-					this.#undo_manager.save(new UndoState(data, 'Add value'));
+					this.#undo_manager.save(new UndoState(this.#data, 'Add value'));
 				}
 			} else {
 				timeInLayer.object.value = value;
 				if (!dont_save) {
-					this.#undo_manager.save(new UndoState(data, 'Update value'));
+					this.#undo_manager.save(new UndoState(this.#data, 'Update value'));
 				}
 			}
 			this.repaintAll();
@@ -173,6 +184,7 @@ class Timeliner {
 		});
 		this.#dispatcher.on('controls.undo', () => {
 			const history = this.#undo_manager.undo();
+			if(!history) { return; }
 			this.#data.setJSONString(history.state);
 			this.updateState();
 		});
@@ -193,6 +205,10 @@ class Timeliner {
 			this.#timeline_panel.data = timeline;
 			this.#layer_cabinet.data = timeline;
 			this.#selected_timeline = timeline;
+		});
+		this.#dispatcher.on('target.ui.expand', (state) => {
+			this.#timeline_panel.data = this.#selected_timeline;
+			// console.log('target.ui.expand: ', state)
 		});
 
 
@@ -226,6 +242,10 @@ class Timeliner {
 		});
 		container.appendChild(this.#dom);
 		this.paint();
+
+		setTimeout(() => {
+			this.#undo_manager.save(new UndoState(this.#data, 'Loaded'), true);
+		});
 	}
 
 	startPlaying() {
@@ -343,8 +363,8 @@ class Timeliner {
 	}
 
 	updateState() {
-		this.#layer_cabinet.setState(this.#layer_store);
-		this.#timeline_panel.setState(this.#layer_store);
+		this.#layer_cabinet.data = this.#selected_timeline;
+		// this.#timeline_panel.setState(this.#selected_timeline);
 		this.repaintAll();
 	}
 
@@ -352,13 +372,13 @@ class Timeliner {
 		// const contentHeight = this.#layers.length * Settings.LINE_HEIGHT;
 		// this.#vertical_scroll_bar.setLength(Settings.TIMELINE_SCROLL_HEIGHT / contentHeight);
 		const currentTime = this.#selected_timeline.get('ui:currentTime').value;
-		this.#layer_cabinet.repaint(currentTime);
+		this.#layer_cabinet.updateStateAtTime(currentTime);
 		this.#timeline_panel.repaint(currentTime);
 	}
 
 	resize(width, height) {
 		width -= 4;
-		height -= 44;
+		// height -= 44;
 		Settings.width = width - Settings.LEFT_PANE_WIDTH;
 		Settings.height = height;
 		Settings.TIMELINE_SCROLL_HEIGHT = height - Settings.MARKER_TRACK_HEIGHT;
@@ -403,7 +423,7 @@ class Timeliner {
 		const layer = new LayerProp(name);
 		this.#layers = this.#layer_store.value;
 		this.#layers.push(layer);
-		this.#layer_cabinet.setState(this.#layer_store);
+		this.#layer_cabinet.data = this.#layer_store;
 		this.#undo_manager.save(new UndoState(this.#data, 'Layer added'));
 		this.repaintAll();
 	}

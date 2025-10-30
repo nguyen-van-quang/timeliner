@@ -129,13 +129,13 @@ function format_friendly_seconds(s, type) {
 
 // get object at time
 function findTimeinLayer(layer, time) {
-	var values = layer.values;
+	var frames = layer.frames;
 	var i, il;
 
 	// TODO optimize by checking time / binary search
 
-	for (i = 0, il = values.length; i < il; i++) {
-		var value = values[i];
+	for (i = 0, il = frames.length; i < il; i++) {
+		var value = frames[i];
 		if (value.time === time) {
 			return {
 				index: i,
@@ -155,10 +155,10 @@ function timeAtLayer(layer, t) {
 	// this expect layer to be sorted
 	// not the most optimized for now, but would do.
 
-	var values = layer.values;
+	var frames = layer.value.frames;
 	var i, il, entry, prev_entry;
 
-	il = values.length;
+	il = frames.length;
 
 	// can't do anything
 	if (il === 0) return;
@@ -166,7 +166,7 @@ function timeAtLayer(layer, t) {
 	if (layer._mute) return
 
 	// find boundary cases
-	entry = values[0];
+	entry = frames[0];
 	if (t < entry.time) {
 		return {
 			value: entry.value,
@@ -177,7 +177,7 @@ function timeAtLayer(layer, t) {
 
 	for (i = 0; i < il; i++) {
 		prev_entry = entry;
-		entry = values[i];
+		entry = frames[i];
 
 		if (t === entry.time) {
 			// only exception is on the last KF, where we display tween from prev entry

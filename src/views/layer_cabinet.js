@@ -21,7 +21,6 @@ class LayerCabinet {
     #dataProx;
     #data;
     #dom;
-    // #domOperation;
     #domTargets;
     #dispatcher;
     #isPlaying = false;
@@ -35,33 +34,30 @@ class LayerCabinet {
     #draggingRange = 0;
     #layer_uis = [];
     #unused_layers = [];
-    #visible_layers = 0;
-    #treeViewLayer;
-    #subUlDom;
-    #subUlDom2;
-
 
     constructor(data, dispatcher) {
-        // this.#data = data;
         this.#data = data;
         this.#dispatcher = dispatcher;
         // this.#currentTimeStore = data.get('ui:currentTime');
         this.#dom = document.createElement('div');
         style(this.#dom, {
-            borderLeft: '1px solid ' + Theme.b,
-            borderRight: '1px solid ' + Theme.b
+            margin: '0px',
+            padding: '0px',
+            borderLeft: '2px solid ' + Theme.b,
+            borderRight: '2px solid ' + Theme.b
         });
 
         this.#domOperations = document.createElement('div');
         // this.#domTop.style.cssText = 'margin: 0px; top: 0; left: 0; height: ' + LayoutConstants.MARKER_TRACK_HEIGHT + 'px';
         style(this.#domOperations, {
             margin: '0px',
+            padding: '0px',
             top: '0px',
             left: '0px',
             height: LayoutConstants.MARKER_TRACK_HEIGHT / 2 + 'px',
             // background: 'red',
             opacity: '0.5',
-            border: '2px solid gray'
+            // border: '2px solid gray'
         });
 
         this.#domRange = document.createElement('input');
@@ -96,6 +92,8 @@ class LayerCabinet {
 
         this.#domTargets = document.createElement('div');
         style(this.#domTargets, {
+            margin: '0px',
+            padding: '0px',
             position: 'absolute',
             top: LayoutConstants.MARKER_TRACK_HEIGHT + 'px',
             left: 0,
@@ -108,61 +106,7 @@ class LayerCabinet {
         this.#dom.appendChild(this.#domTargets);
         this.#dom.appendChild(this.#domOperations);
 
-        this.setState(this.#data);
-        // this.repaint();
-    }
-
-    initTreeView() {
-        this.#treeViewLayer = document.createElement('ul');
-        addClass(this.#treeViewLayer, 'tree-animation');
-
-        const liDom = document.createElement('li');
-        const detailDom = document.createElement('details');
-        detailDom.setAttribute('open', '');
-        detailDom.addEventListener('toggle', () => {
-            if (detailDom.open) {
-                this.#dispatcher.fire('layer.tree.opened');
-            } else {
-                this.#dispatcher.fire('layer.tree.closed');
-            }
-        });
-
-        const summaryDom = document.createElement('summary');
-        summaryDom.innerText = 'Label';
-        detailDom.appendChild(summaryDom);
-        liDom.appendChild(detailDom);
-
-        this.#subUlDom = document.createElement('ul');
-        detailDom.appendChild(this.#subUlDom);
-        this.#treeViewLayer.appendChild(liDom);
-        this.#domTargets.appendChild(this.#treeViewLayer);
-    }
-
-    initTreeView2(offset) {
-        const treeViewLayer = document.createElement('ul');
-        treeViewLayer.style.marginTop = offset + 'px';
-        addClass(treeViewLayer, 'tree-animation');
-
-        const liDom = document.createElement('li');
-        const detailDom = document.createElement('details');
-        detailDom.setAttribute('open', '');
-        detailDom.addEventListener('toggle', () => {
-            if (detailDom.open) {
-                this.#dispatcher.fire('layer.tree.opened');
-            } else {
-                this.#dispatcher.fire('layer.tree.closed');
-            }
-        });
-
-        const summaryDom = document.createElement('summary');
-        summaryDom.innerText = 'Image';
-        detailDom.appendChild(summaryDom);
-        liDom.appendChild(detailDom);
-
-        this.#subUlDom2 = document.createElement('ul');
-        detailDom.appendChild(this.#subUlDom2);
-        treeViewLayer.appendChild(liDom);
-        this.#domTargets.appendChild(treeViewLayer);
+        this.#createLayers();
     }
 
     initDomOperation(dispatcher) {
@@ -206,65 +150,31 @@ class LayerCabinet {
         return domOperation;
     }
 
-    // initDomLayerScroll(domLayerScroll) {
-    //     style(domLayerScroll, {
-    //         position: 'absolute',
-    //         top: LayoutConstants.MARKER_TRACK_HEIGHT + 'px',
-    //         left: 0,
-    //         right: 0,
-    //         bottom: 0,
-    //         overflow: 'hidden'
-    //     });
-    //     domLayerScroll.id = 'layer_cabinet';
-    // }
-
-    // setState(state) {
-    //     this.#layer_store = state;
-    //     const layers = this.#layer_store.value;
-    //     for (let i = 0; i < layers.length; i++) {
-    //         const layer = layers[i];
-    //         if (!this.#layer_uis[i]) {
-    //             let layer_ui;
-    //             if (this.#unused_layers.length) {
-    //                 layer_ui = this.#unused_layers.pop();
-    //                 layer_ui.dom.style.display = 'block';
-    //             } else {
-    //                 console.log('layer: ', layer)
-    //                 layer_ui = new LayerView(layer, this.#dispatcher);
-    //                 // this.#domLayerScroll.appendChild(layer_ui.dom);
-    //                 const liDom = document.createElement('li');
-    //                 // liDom.style.listStyle = 'none';
-    //                 liDom.appendChild(layer_ui.dom);
-    //                 this.#subUlDom.appendChild(liDom);
-    //             }
-    //             this.#layer_uis.push(layer_ui);
-    //         }
-    //     }
-    // }
-
-    // nen doi ten thanh setData
-    setState(dataProx) {
-        this.#dataProx = dataProx;
+    #createLayers() {
+        this.#layer_uis = [];
+        this.#dataProx = this.#data;
         while (this.#domTargets.firstChild) {
             this.#domTargets.removeChild(this.#domTargets.firstChild);
         }
         const targets = this.#dataProx.get('targets');
         for (let i = 0; i < targets.value.length; i++) {
             const target = targets.get(i);
-            console.log('target', target);
-
             const treeViewLayer = document.createElement('ul');
+            style(treeViewLayer, {
+                margin: '0px',
+                padding: '0px',
+                paddingLeft: '15px'
+            })
             addClass(treeViewLayer, 'tree-animation');
 
             const liDom = document.createElement('li');
             const detailDom = document.createElement('details');
-            detailDom.setAttribute('open', '');
+            if(target.value.ui.expand) {
+                detailDom.setAttribute('open', 'true');
+            }
             detailDom.addEventListener('toggle', () => {
-                if (detailDom.open) {
-                    this.#dispatcher.fire('layer.tree.opened');
-                } else {
-                    this.#dispatcher.fire('layer.tree.closed');
-                }
+                target.value.ui.expand = detailDom.open;
+                this.#dispatcher.fire('target.ui.expand', detailDom.open);
             });
 
             const summaryDom = document.createElement('summary');
@@ -274,10 +184,6 @@ class LayerCabinet {
 
             const subUlDom = document.createElement('ul');
             detailDom.appendChild(subUlDom);
-
-            //
-            // create and append view_layer here
-            //
 
             const layersProx = target.get('layers');
             for (let i = 0; i < layersProx.value.length; i++) {
@@ -291,37 +197,6 @@ class LayerCabinet {
 
             treeViewLayer.appendChild(liDom);
             this.#domTargets.appendChild(treeViewLayer);
-
-
-            // const treeViewLayer = document.createElement('ul');
-            // addClass(treeViewLayer, 'tree-animation');
-            // const liDom = document.createElement('li');
-            // const detailDom = document.createElement('details');
-            // detailDom.setAttribute('open', '');
-            // detailDom.addEventListener('toggle', () => {
-            //     if (detailDom.open) {
-            //         this.#dispatcher.fire('layer.tree.opened');
-            //     } else {
-            //         this.#dispatcher.fire('layer.tree.closed');
-            //     }
-            // });
-            // const summaryDom = document.createElement('summary');
-            // summaryDom.innerText = 'Label';
-            // detailDom.appendChild(summaryDom);
-            // liDom.appendChild(detailDom);
-            // const subUlDom = document.createElement('ul');
-            // detailDom.appendChild(subUlDom);
-            // treeViewLayer.appendChild(liDom);
-            // this.#domLayerScroll.appendChild(treeViewLayer);
-            // for (let j = 0; j < target.animations.length; j++) {
-            //     const animation = target.animations[j];
-            //     console.log('animation', animation);
-            //     const frame_ui = new LayerView(animation, this.#dispatcher);
-            //     this.#layer_uis.push(frame_ui);
-            //     const liDom = document.createElement('li');
-            //     liDom.appendChild(frame_ui.dom);
-            //     subUlDom.appendChild(liDom);
-            // }
         }
     }
 
@@ -337,42 +212,12 @@ class LayerCabinet {
         }
     }
 
-    repaint(currentTime) {
-        // currentTime = currentTime || 0;
-        // const targets = this.#targets.value;
-        // for (let i = 0; i < targets.length; i++) {
-        //     const target = targets[i];
-        //     for (let j = 0; j < target.layers.length; j++) {
-        //         for(let k = this.#layer_uis.length; k-- > 0;) {
-        //             // if(k >= target.animations.length) {
-        //             //     this.#layer_uis[k].dom.style.display = 'none';
-        //             //     this.#unused_layers.push(this.#layer_uis.pop());
-        //             //     continue;
-        //             // }
-        //             // this.#layer_uis[k].setState(target.animations.values[k], this.#layer_store.get(k));
-        //             this.#layer_uis[k].repaint(currentTime);
-        //         }
-        //         // this.#visible_layers = this.#layer_uis.length;
-        //     }
-        // }
+    updateStateAtTime(time) {
+        time = time || 0;
+        for(let i = 0; i < this.#layer_uis.length; i++) {
+            this.#layer_uis[i].repaint(time);
+        }
     }
-
-    // repaint(s) {
-    //     // s = this.#currentTimeStore.value;
-    //     var i;
-    //     s = s || 0;
-    //     var layers = this.#targets.value;
-    //     for (i = this.#layer_uis.length; i-- > 0;) {
-    //         if (i >= layers.length) {
-    //             this.#layer_uis[i].dom.style.display = 'none';
-    //             this.#unused_layers.push(this.#layer_uis.pop());
-    //             continue;
-    //         }
-    //         this.#layer_uis[i].setState(layers[i], this.#targets.get(i));
-    //         this.#layer_uis[i].repaint(s);
-    //     }
-    //     this.#visible_layers = this.#layer_uis.length;
-    // }
 
     scrollTo = function (x) {
         this.#domTargets.scrollTop = x * (this.#domTargets.scrollHeight - this.#domTargets.clientHeight);
@@ -380,8 +225,7 @@ class LayerCabinet {
 
     set data(data) {
         this.#data = data;
-        // should remove setState here later
-        this.setState(this.#data);
+        this.#createLayers();
     }
 
     get dom() {

@@ -7,7 +7,7 @@ import { utils } from '../utils/utils.js'
 const { style } = utils;
 
 class LayerView {
-    #layer;
+    #data;
     #dispatcher;
     #dom;
     #state;
@@ -16,8 +16,8 @@ class LayerView {
     #number;
     #label;
 
-    constructor(layer, dispatcher) {
-        this.#layer = layer;
+    constructor(data, dispatcher) {
+        this.#data = data;
         this.#dispatcher = dispatcher;
         this.#dom = document.createElement('div');
         style(this.#dom, {
@@ -34,6 +34,7 @@ class LayerView {
 
         this.#label = document.createElement('span');
         this.#label.style.cssText = 'font-size: 12px; padding: 4px;';
+        this.#label.textContent = this.#data.value.name;
         this.#label.addEventListener('click', function (e) {
             // context.dispatcher.fire('label', channelName);
         });
@@ -42,11 +43,11 @@ class LayerView {
         });
         this.#dom.appendChild(this.#label);
 
-        this.#number = new UINumber(layer, dispatcher);
-        this.#number.onChange.do(function (value, done) {
-            this.#state.get('_value').value = value;
-            dispatcher.fire('value.change', layer, value, done);
-        }.bind(this));
+        this.#number = new UINumber(data, dispatcher);
+        this.#number.onChange.do((value, done) => {
+            this.#data.get('_value').value = value;
+            dispatcher.fire('value.change', this.#data.value, value, done);
+        });
         style(this.#number.dom, {
             // float: 'right'
         });
@@ -59,8 +60,8 @@ class LayerView {
             option.text = k;
             this.#dropdown.appendChild(option);
         }
-        this.#dropdown.addEventListener('change', function () {
-            dispatcher.fire('ease', layer, dropdown.value);
+        this.#dropdown.addEventListener('change', () => {
+            dispatcher.fire('ease', this.#data, this.#dropdown.value);
         });
         this.#dom.appendChild(this.#dropdown);
 
@@ -69,21 +70,21 @@ class LayerView {
         this.#keyframe_button.innerHTML = '&#9672;'; // '&diams;' &#9671; 9679 9670 9672
         this.#keyframe_button.style.cssText = 'background: none; font-size: 12px; padding: 0px; font-family: monospace; float: right; width: 20px; height: ' + height + 'px; border-style:none; outline: none;'; //  border-style:inset;
         this.#keyframe_button.addEventListener('click', function (e) {
-            dispatcher.fire('keyframe', layer, this.#state.get('_value').value);
+            dispatcher.fire('keyframe', this.#data.value, this.#data.get('_value').value);
         }.bind(this));
         this.#dom.appendChild(this.#keyframe_button);
 
         const remove_layer_btn = document.createElement('button');
         remove_layer_btn.innerHTML = '&minus;';
         remove_layer_btn.style.cssText = 'color: ' + Theme.b + '; background: none; font-size: 16px; padding: 0px; font-family: monospace; float: right; width: 20px; height: ' + (LayoutConstants.LINE_HEIGHT - 5) + 'px; border-style:none; outline: none;';
-        remove_layer_btn.addEventListener('click', function (e) {
-            dispatcher.fire('layer.remove', layer);
+        remove_layer_btn.addEventListener('click', (e) => {
+            dispatcher.fire('layer.remove', this.#data);
         });
         this.#dom.appendChild(remove_layer_btn);
     }
 
     setState(l, s) {
-        this.#layer = l;
+        this.#data = l;
         this.#state = s;
 
         var tmp_value = this.#state.get('_value');
@@ -102,7 +103,7 @@ class LayerView {
         this.#dropdown.disabled = true;
         this.#keyframe_button.style.color = Theme.b;
 
-        const o = utils.timeAtLayer(this.#layer, s);
+        const o = utils.timeAtLayer(this.#data, s);
 
         if (!o) return;
 
@@ -117,11 +118,11 @@ class LayerView {
             this.#keyframe_button.style.color = Theme.c;
         }
 
-        this.#state.get('_value').value = o.value;
+        this.#data.get('_value').value = o.value;
         this.#number.setValue(o.value);
         this.#number.paint();
 
-        this.#dispatcher.fire('target.notify', this.#layer.name, o.value);
+        this.#dispatcher.fire('target.notify', this.#data.name, o.value);
     }
 
     get dom() {
