@@ -2,9 +2,9 @@
 import { LayoutConstants } from '../layout_constants.js'
 import { Theme } from '../theme.js'
 import { utils } from '../utils/utils.js'
-import { Tweens } from '../utils/util_tween.js'
-import { handleDrag } from '../utils/util_handle_drag.js'
-import { ScrollCanvas } from './time_scroller.js'
+import { Tweens } from '../utils/tween.js'
+import { handleDrag } from '../utils/handle-drag.js'
+import { ScrollCanvas } from './time-scroller.js'
 import { Canvas } from '../ui/canvas.js'
 
 const { proxy_ctx, style } = utils;
@@ -171,17 +171,11 @@ class TimelinePanel {
 	#tickMark1 = this.#time_scale / 60;
 	#tickMark2 = 2 * this.#tickMark1;
 	#tickMark3 = 10 * this.#tickMark1;
-
 	#over = null;
 	#mousedownItem = null;
 	#mousedown2 = false;
 	#mouseDownThenMove = false;
-
-
-
-	// this is the current scroll position.
-	#frame_start = 0;
-
+	#frame_start = 0; // this is the current scroll position.
 	#canvasBounds;
 	#pointer = null;
 
@@ -190,7 +184,7 @@ class TimelinePanel {
 		this.#data = data;
 		this.#dispatcher = dispatcher;
 		this.#dpr = window.devicePixelRatio || 1;
-		this.#targets = data.get('targets').value;
+		this.#targets = data.targets;
 
 		this.#track_canvas = document.createElement('canvas');
 		this.#track_canvas.addEventListener('dblclick', (e) => {
@@ -198,10 +192,10 @@ class TimelinePanel {
 			const mx = e.clientX - this.#canvasBounds.left;
 			const my = e.clientY - this.#canvasBounds.top;
 			const layer = this.y_to_track(my);
-			// const s = this.x_to_time(mx);
-			console.log('layer: ', layer);
+			const target = this.#data.targets.find(t => t.layers.indexOf(layer) !== -1);
+			const time = this.x_to_time(mx);
 			if (typeof layer === 'object') {
-				this.#dispatcher.fire('keyframe', layer, this.#currentTime);
+				this.#dispatcher.fire('keyframe', target, layer);
 			}
 		});
 		this.#track_canvas.addEventListener('mouseout', () => {
@@ -280,11 +274,6 @@ class TimelinePanel {
 		handleDrag(this.#track_canvas, handleDown, handleMove, handleUp);
 	}
 
-	scrollTo(top, left) {
-		this.#scrollTop = top * Math.max(this.#targets.length * LINE_HEIGHT - this.#SCROLL_HEIGHT, 0);
-		this.repaint();
-	}
-
 	resize() {
 		const h = (LayoutConstants.height - TIME_SCROLLER_HEIGHT);
 		this.#dpr = window.devicePixelRatio;
@@ -306,10 +295,6 @@ class TimelinePanel {
 
 	drawLayerContents() {
 		this.#renderItems = [];
-		if (!this.#targets || this.#targets.length === 0) {
-			return;
-		}
-
 		// Draw horizontal Layer lines
 		for (let i = 0, next_target_gap = 0; i < this.#targets.length; i++) {
 			const layers = this.#targets[i].layers;
@@ -394,7 +379,8 @@ class TimelinePanel {
 	}
 
 	setTimeScale() {
-		const v = this.#data.get('ui:timeScale').value;
+		if (!this.#data) return;
+		const v = this.#data.ui.timeScale;
 		if (this.#time_scale !== v) {
 			this.#time_scale = v;
 			this.timeScaled();
@@ -445,24 +431,22 @@ class TimelinePanel {
 			this.pointerEvents();
 			return;
 		}
-		this.#scroll_canvas.repaint();
 
-		this.setTimeScale();
-
-		this.#currentTime = this.#data.get('ui:currentTime').value;
-		this.#frame_start = this.#data.get('ui:scrollTime').value;
-		console.log('this.#frame_start: ', this.#frame_start);
+		const width = LayoutConstants.width;
+		const height = LayoutConstants.height;
 
 		// background
 		this.#ctx.fillStyle = Theme.a;
 		this.#ctx.clearRect(0, 0, this.#track_canvas.width, this.#track_canvas.height);
 		this.#ctx.save();
 		this.#ctx.scale(this.#dpr, this.#dpr);
-
 		this.#ctx.lineWidth = 1; // .5, 1, 2
 
-		const width = LayoutConstants.width;
-		const height = LayoutConstants.height;
+		this.#scroll_canvas.repaint();
+		this.setTimeScale();
+
+		this.#currentTime = this.#data ? this.#data.ui.currentTime : 0;
+		this.#frame_start = this.#data ? this.#data.ui.scrollTime : 0;
 
 		let units = this.#time_scale / this.#tickMark1;
 		const offsetUnits = (this.#frame_start * this.#time_scale) % units;
@@ -470,14 +454,8 @@ class TimelinePanel {
 
 		for (let i = 0; i < count; i++) {
 			const x = i * units + this.#LEFT_GUTTER - offsetUnits;
-			// draw vertical lines
-			this.#ctx.strokeStyle = Theme.b;
-			this.#ctx.beginPath();
-			// this.#ctx.moveTo(x, 0);
-			// this.#ctx.lineTo(x, height);
-			// this.#ctx.stroke();
-
 			// draw time index
+			this.#ctx.beginPath();
 			this.#ctx.fillStyle = Theme.d;
 			this.#ctx.textAlign = 'center';
 			let t = (i * units - offsetUnits) / this.#time_scale + this.#frame_start;
@@ -607,14 +585,9 @@ class TimelinePanel {
 		this.onPointerMove(mx, my);
 	}
 
-	// setState(state) {
-	// 	this.#data = state.value;
-	// 	this.repaint();
-	// }
-
 	set data(data) {
 		this.#data = data;
-		this.#targets = data.get('targets').value;
+		this.#targets = data ? data.targets : [];
 		this.repaint();
 	}
 

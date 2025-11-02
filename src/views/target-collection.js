@@ -1,44 +1,34 @@
 /* eslint-disable */
 import { LayoutConstants } from '../layout_constants.js'
-import { LayerView } from './view_layer.js'
-import { IconButton } from '../ui/icon_button.js'
+import { Layer } from './layer.js'
+import { IconButton } from '../ui/icon-button.js'
 import { utils } from '../utils/utils.js'
 import { Theme } from '../theme.js'
-import { UINumber } from '../ui/ui_number.js'
+import { UINumber } from '../ui/number.js'
 
-const { STORAGE_PREFIX, style, addClass } = utils
+const { style, addClass } = utils
 const btnStyles = {
     width: '22px',
     height: '22px',
     padding: '2px'
 };
-const operationBtnStyles = {
-    width: '32px',
-    padding: '3px 4px 3px 4px'
-};
 
-class LayerCabinet {
-    #dataProx;
+class TargetCollection {
     #data;
     #dom;
     #domTargets;
     #dispatcher;
     #isPlaying = false;
-    #currentTimeStore;
     #playBtn;
     #stopBtn;
-    #undoBtn;
-    #redoBtn;
     #domOperations;
     #domRange;
     #draggingRange = 0;
     #layer_uis = [];
-    #unused_layers = [];
 
     constructor(data, dispatcher) {
         this.#data = data;
         this.#dispatcher = dispatcher;
-        // this.#currentTimeStore = data.get('ui:currentTime');
         this.#dom = document.createElement('div');
         style(this.#dom, {
             margin: '0px',
@@ -130,32 +120,18 @@ class LayerCabinet {
             dispatcher.fire('controls.stop');
         });
         domOperation.appendChild(this.#stopBtn.dom);
-
-        this.#undoBtn = new IconButton(16, 'undo', 'undo', dispatcher);
-        style(this.#undoBtn.dom, this.operationBtnStyles);
-        this.#undoBtn.onClick(function () {
-            dispatcher.fire('controls.undo');
-        });
-        domOperation.appendChild(this.#undoBtn.dom);
-
-        this.#redoBtn = new IconButton(16, 'repeat', 'redo', dispatcher);
-        style(this.#redoBtn.dom, this.operationBtnStyles);
-        this.#redoBtn.onClick(function () {
-            dispatcher.fire('controls.redo');
-        });
-        domOperation.appendChild(this.#redoBtn.dom);
         return domOperation;
     }
 
     #createLayers() {
+        if (!this.#data) return;
         this.#layer_uis = [];
-        this.#dataProx = this.#data;
         while (this.#domTargets.firstChild) {
             this.#domTargets.removeChild(this.#domTargets.firstChild);
         }
-        const targets = this.#dataProx.get('targets');
-        for (let i = 0; i < targets.value.length; i++) {
-            const target = targets.get(i);
+        const targets = this.#data.targets;
+        for (let i = 0; i < targets.length; i++) {
+            const target = targets[i];
             const treeViewLayer = document.createElement('ul');
             style(treeViewLayer, {
                 margin: '0px',
@@ -166,26 +142,38 @@ class LayerCabinet {
 
             const liDom = document.createElement('li');
             const detailDom = document.createElement('details');
-            if(target.value.ui.expand) {
+            if(target.ui.expand) {
                 detailDom.setAttribute('open', 'true');
             }
             detailDom.addEventListener('toggle', () => {
-                target.value.ui.expand = detailDom.open;
+                target.ui.expand = detailDom.open;
                 this.#dispatcher.fire('target.ui.expand', detailDom.open);
             });
 
             const summaryDom = document.createElement('summary');
-            summaryDom.innerText = target.value.name;
+            summaryDom.innerText = target.name;
             detailDom.appendChild(summaryDom);
             liDom.appendChild(detailDom);
 
             const subUlDom = document.createElement('ul');
             detailDom.appendChild(subUlDom);
 
-            const layersProx = target.get('layers');
-            for (let i = 0; i < layersProx.value.length; i++) {
-                const layer = layersProx.get(i);
-                const layer_ui = new LayerView(layer, this.#dispatcher);
+            const layers = target.layers;
+            for (let i = 0; i < layers.length; i++) {
+                const layer = layers[i];
+                const layer_ui = new Layer(layer, (event, data) => {
+                    switch(event) {
+                        case 'ease':
+                            layer.tween = data;
+                            break;
+                        case 'keyframe':
+                            this.#dispatcher.fire('keyframe', target, layer);
+                            break;
+                        case 'layer.remove':
+                            this.#dispatcher.fire('layer.remove', target, layer);
+                            break;
+                    }
+                });
                 const liLayerDom = document.createElement('li');
                 liLayerDom.appendChild(layer_ui.dom);
                 subUlDom.appendChild(liLayerDom);
@@ -216,10 +204,6 @@ class LayerCabinet {
         }
     }
 
-    scrollTo = function (x) {
-        this.#domTargets.scrollTop = x * (this.#domTargets.scrollHeight - this.#domTargets.clientHeight);
-    }
-
     set data(data) {
         this.#data = data;
         this.#createLayers();
@@ -247,22 +231,6 @@ class LayerCabinet {
     changeRange() {
         this.#dispatcher.fire('update.scale', 6 * Math.pow(100, - this.#domRange.value));
     }
-
-    // convertPercentToTime(t) {
-    //     var min_time = 10 * 60; // 10 minutes
-    //     min_time = this.#data.get('ui:totalTime').value;
-    //     var max_time = 1;
-    //     var v = LayoutConstants.width * 0.8 / (t * (max_time - min_time) + min_time);
-    //     return v;
-    // }
-
-    // convertTimeToPercent(v) {
-    //     var min_time = 10 * 60; // 10 minutes
-    //     min_time = this.#data.get('ui:totalTime').value;
-    //     var max_time = 1;
-    //     var t = ((LayoutConstants.width * 0.8 / v) - min_time) / (max_time - min_time);
-    //     return t;
-    // }
 }
 
-export { LayerCabinet };
+export { TargetCollection };

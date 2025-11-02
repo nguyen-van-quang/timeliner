@@ -1,14 +1,14 @@
 /* eslint-disable */
 import { Theme } from '../theme.js'
-import { UINumber } from '../ui/ui_number.js'
-import { Tweens } from '../utils/util_tween.js'
+import { UINumber } from '../ui/number.js'
+import { Tweens } from '../utils/tween.js'
 import { LayoutConstants } from '../layout_constants.js'
 import { utils } from '../utils/utils.js'
 const { style } = utils;
 
-class LayerView {
+class Layer {
     #data;
-    #dispatcher;
+    #callback;
     #dom;
     #state;
     #keyframe_button;
@@ -16,9 +16,9 @@ class LayerView {
     #number;
     #label;
 
-    constructor(data, dispatcher) {
+    constructor(data, callback) {
         this.#data = data;
-        this.#dispatcher = dispatcher;
+        this.#callback = callback;
         this.#dom = document.createElement('div');
         style(this.#dom, {
             textAlign: 'left',
@@ -35,19 +35,13 @@ class LayerView {
 
         this.#label = document.createElement('span');
         this.#label.style.cssText = 'font-size: 12px; padding: 4px; width: 45px; overflow: hidden; text-overflow: ellipsis;';
-        this.#label.textContent = this.#data.value.name;
-        this.#label.addEventListener('click', function (e) {
-            // context.dispatcher.fire('label', channelName);
-        });
-        this.#label.addEventListener('mouseover', function (e) {
-            // context.dispatcher.fire('label', channelName);
-        });
+        this.#label.textContent = this.#data.name;
         this.#dom.appendChild(this.#label);
 
-        this.#number = new UINumber(data, dispatcher);
+        this.#number = new UINumber(data, this.#callback);
         this.#number.onChange.do((value, done) => {
-            this.#data.get('_value').value = value;
-            dispatcher.fire('value.change', this.#data.value, value, done);
+            this.#data._value = value;
+            // this.#callback.fire('value.change', this.#data.value, value, done);
         });
         style(this.#number.dom, {
             float: 'right',
@@ -63,7 +57,7 @@ class LayerView {
             this.#dropdown.appendChild(option);
         }
         this.#dropdown.addEventListener('change', () => {
-            dispatcher.fire('ease', this.#data, this.#dropdown.value);
+            this.#callback('ease', this.#dropdown.value);
         });
         this.#dom.appendChild(this.#dropdown);
 
@@ -72,7 +66,7 @@ class LayerView {
         this.#keyframe_button.innerHTML = '&#9672;'; // '&diams;' &#9671; 9679 9670 9672
         this.#keyframe_button.style.cssText = 'background: none; font-size: 12px; padding: 0px; font-family: monospace; float: right; width: 20px; height: ' + height + 'px; border-style:none; outline: none;'; //  border-style:inset;
         this.#keyframe_button.addEventListener('click', function (e) {
-            dispatcher.fire('keyframe', this.#data.value, this.#data.get('_value').value);
+            this.#callback('keyframe');
         }.bind(this));
         this.#dom.appendChild(this.#keyframe_button);
 
@@ -80,7 +74,7 @@ class LayerView {
         remove_layer_btn.innerHTML = '&minus;';
         remove_layer_btn.style.cssText = 'color: ' + Theme.b + '; background: none; font-size: 12px; padding: 0px; font-family: monospace; float: right; width: 20px; height: ' + height + 'px; border-style:none; outline: none;';
         remove_layer_btn.addEventListener('click', (e) => {
-            dispatcher.fire('layer.remove', this.#data);
+            this.#callback('layer.remove');
         });
         this.#dom.appendChild(remove_layer_btn);
     }
@@ -100,31 +94,25 @@ class LayerView {
         this.repaint();
     }
 
-    repaint(s) {
+    repaint(time) {
         this.#dropdown.style.opacity = 0;
         this.#dropdown.disabled = true;
         this.#keyframe_button.style.color = Theme.b;
 
-        const o = utils.timeAtLayer(this.#data, s);
-
+        const o = utils.timeAtLayer(this.#data, time);
         if (!o) return;
-
         if (o.can_tween) {
             this.#dropdown.style.opacity = 1;
             this.#dropdown.disabled = false;
             this.#dropdown.value = o.tween ? o.tween : 'none';
             if (this.#dropdown.value === 'none') this.#dropdown.style.opacity = 0.5;
         }
-
         if (o.keyframe) {
             this.#keyframe_button.style.color = Theme.c;
         }
-
-        this.#data.get('_value').value = o.value;
+        this.#data._value = o.value;
         this.#number.setValue(o.value);
         this.#number.paint();
-
-        this.#dispatcher.fire('target.notify', this.#data.name, o.value);
     }
 
     get dom() {
@@ -132,4 +120,4 @@ class LayerView {
     }
 }
 
-export { LayerView };
+export { Layer };

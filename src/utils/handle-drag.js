@@ -98,7 +98,6 @@ function handleDrag(element, ondown, onmove, onup, down_criteria) {
 		element.removeEventListener('touchend', onTouchEnd);
 	}
 
-
 	// this.release = function() {
 	// 	element.removeEventListener('mousedown', onMouseDown);
 	// 	element.removeEventListener('touchstart', onTouchStart);

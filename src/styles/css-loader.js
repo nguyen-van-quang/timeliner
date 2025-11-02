@@ -1,7 +1,4 @@
 /* CSS Loader for Timeliner - Auto-loads CSS when imported */
-
-import { utils } from '../utils/utils.js';
-
 const timelinerCSS = `
     ul.tree-animation {
         list-style: none;
@@ -44,7 +41,6 @@ const timelinerCSS = `
     .tree-animation summary::-webkit-details-marker {
         display: none;
     }
-
     .timeline-cabinet {
 
     }

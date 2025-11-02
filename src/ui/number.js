@@ -1,13 +1,9 @@
 /* eslint-disable */
 import { Theme } from '../theme.js'
 import { Do } from '../utils/do.js'
-import { handleDrag } from '../utils/util_handle_drag.js'
+import { handleDrag } from '../utils/handle-drag.js'
 import { utils } from '../utils/utils.js'
 const { firstDefined, style } = utils;
-
-/**************************/
-// UINumber
-/**************************/
 
 function UINumber(config) {
 	config = config || {};

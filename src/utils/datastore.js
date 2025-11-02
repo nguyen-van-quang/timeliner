@@ -1,11 +1,7 @@
 /* eslint-disable */
-var package_json = { version: "test-version" };
-
-// import { eventBus } from './event_bus.js'; // Giả sử bạn có event bus
 import { LayoutConstants } from '../layout_constants.js'
 import { Do } from './do.js'
 
-// Data Store with a source of truth
 function DataStore(data) {
 	for (let i = 0; i < data.timelines.length; i++) {
 		let timeline = data.timelines[i];
@@ -35,28 +31,21 @@ function DataStore(data) {
 // };
 
 DataStore.prototype.blank = function () {
-	var data = {};
-
-	data.version = package_json.version;
+	const data = {};
 	data.modified = new Date().toString();
 	data.title = 'Untitled';
-
 	data.ui = {
 		currentTime: 0,
 		totalTime: LayoutConstants.default_length,
 		scrollTime: 0,
 		timeScale: LayoutConstants.time_scale
 	};
-
 	data.layers = [];
-
 	this.data = data;
 };
 
 DataStore.prototype.update = function () {
-	var data = this.data;
-
-	data.version = package_json.version;
+	const data = this.data;
 	data.modified = new Date().toString();
 };
 
@@ -103,24 +92,6 @@ DataStore.prototype.setValue = function (paths, value) {
 DataStore.prototype.get = function (path, suffix) {
 	if (suffix) path = suffix + this.DELIMITER + path;
 	return new DataProx(this, path);
-};
-
-function DataProx(store, path) {
-	this.path = path;
-	this.store = store;
-}
-
-DataProx.prototype = {
-	get value() {
-		return this.store.getValue(this.path);
-	},
-	set value(val) {
-		this.store.setValue(this.path, val);
-	}
-};
-
-DataProx.prototype.get = function (path) {
-	return this.store.get(path, this.path);
 };
 
 export { DataStore }

@@ -2,7 +2,7 @@
 import { Theme } from '../theme.js'
 import { utils } from '../utils/utils.js'
 const proxy_ctx = utils.proxy_ctx;
-import { handleDrag } from '../utils/util_handle_drag.js'
+import { handleDrag } from '../utils/handle-drag.js'
 
 /* This is the top bar where it shows a horizontal scrolls as well as a custom view port */
 
@@ -60,11 +60,11 @@ function ScrollCanvas(dispatcher, data) {
 	var scrollRect = new Rect();
 
 	this.paint = function(ctx) {
-		var totalTime = data.get('ui:totalTime').value;
-		var scrollTime = data.get('ui:scrollTime').value;
-		var currentTime = data.get('ui:currentTime').value;
+		var totalTime = data.ui.totalTime;
+		var scrollTime = data.ui.scrollTime;
+		var currentTime = data.ui.currentTime;
 
-		var pixels_per_second = data.get('ui:timeScale').value;
+		var pixels_per_second = data.ui.timeScale;
 
 		ctx.save();
 		var dpr = window.devicePixelRatio;
@@ -128,8 +128,8 @@ function ScrollCanvas(dispatcher, data) {
 			return;
 		}
 
-		var totalTime = data.get('ui:totalTime').value;
-		var pixels_per_second = data.get('ui:timeScale').value;
+		var totalTime = data.ui.totalTime;
+		var pixels_per_second = data.ui.timeScale;
 		var w = width - 2 * MARGINS;
 
 		var t = (e.offsetx - MARGINS) / w * totalTime;
@@ -144,7 +144,7 @@ function ScrollCanvas(dispatcher, data) {
 
 	this.onMove = function move(e) {
 		if (draggingx != null) {
-			var totalTime = data.get('ui:totalTime').value;
+			var totalTime = data.ui.totalTime;
 			var w = width - 2 * MARGINS;
 			var scrollTime = (draggingx + e.dx) / w * totalTime;
 
