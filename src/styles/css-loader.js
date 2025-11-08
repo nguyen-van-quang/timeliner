@@ -1,4 +1,4 @@
-/* CSS Loader for Timeliner - Auto-loads CSS when imported */
+/* eslint-disable */
 const timelinerCSS = `
     ul.tree-animation {
         list-style: none;
@@ -73,7 +73,6 @@ function initializeCSS() {
     if (!cssInjected && typeof document !== 'undefined') {
         injectCSS(timelinerCSS);
         cssInjected = true;
-        console.log('Timeliner CSS with pseudo-classes loaded');
     }
 }
 

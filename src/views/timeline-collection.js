@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { utils } from '../utils/utils.js'
 const { style } = utils;
 import { Theme } from '../theme.js'
@@ -120,8 +121,6 @@ class TimelineCollection {
           }
         });
       });
-
-
       liDom.appendChild(domDiv);
       ulDom.appendChild(liDom);
     }

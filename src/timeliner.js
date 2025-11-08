@@ -9,8 +9,6 @@ import { TimelinePanel } from './views/timeline-panel.js';
 import './styles/css-loader.js';
 const style = utils.style;
 
-const Z_INDEX = 999;
-
 const TIMELINE_TEMPLATE = {
 	id: 'fake-timeline',
 	name: "",
@@ -23,10 +21,20 @@ const TIMELINE_TEMPLATE = {
 	targets: []
 };
 
+class FrameProp {
+	constructor(time, value) {
+		this.time = time;
+		this.value = value;
+		this._color = utils.generateColor();
+	}
+}
+
 class LayerProp {
-	constructor(name) {
+	constructor(name, time, value) {
 		this.name = name;
-		this.frames = [];
+		this.frames = [
+			new FrameProp(time, value)
+		];
 	}
 }
 
@@ -50,7 +58,6 @@ class Timeliner {
 	#timeline_panel;
 	#target_collection;
 	#start_play = null;
-	#played_from = 0; // requires some more tweaking
 	#needs_resize = true;
 	#subDom = document.createElement('div');
 	#dom = document.createElement('div');
@@ -59,15 +66,7 @@ class Timeliner {
 	constructor(data, container, options) {
 		this.#dispatcher = new Dispatcher();
 		this.#data = data;
-		this.#selected_timeline = this.#data.timelines.length > 0 ? this.#data.timelines[0] : {
-			ui: {
-				currentTime: 0,
-				totalTime: 20,
-				scrollTime: 0,
-				timeScale: 60,
-			},
-			targets: []
-		};
+		this.#selected_timeline = this.#data.timelines.length > 0 ? this.#data.timelines[0] : JSON.parse(JSON.stringify(TIMELINE_TEMPLATE));
 		this.#timeline_collection = new TimelineCollection(this.#data.timelines, this.#dispatcher);
 		this.#target_collection = new TargetCollection(this.#selected_timeline, this.#dispatcher);
 		this.#timeline_panel = new TimelinePanel(this.#selected_timeline, this.#dispatcher);
@@ -77,11 +76,12 @@ class Timeliner {
 			const currentTime = this.#selected_timeline.ui.currentTime;
 			const timeInLayer = utils.findTimeinLayer(layer, currentTime);
 			if (typeof (timeInLayer) === 'number') {
-				layer.frames.splice(timeInLayer, 0, {
-					time: currentTime,
-					value: layer._value,
-					_color: '#' + (Math.random() * 0xffffff | 0).toString(16)
-				});
+				layer.frames.splice(timeInLayer, 0,
+					{
+						time: currentTime,
+						value: layer._value,
+						_color: utils.generateColor()
+					});
 			} else {
 				layer.frames.splice(timeInLayer.index, 1);
 			}
@@ -89,24 +89,32 @@ class Timeliner {
 		});
 		this.#dispatcher.on('layer.remove', (target, layer) => {
 			target.layers.splice(target.layers.indexOf(layer), 1);
-			if (target.layers.length == 0) {
-				this.#selected_timeline.targets.splice(this.#selected_timeline.targets.indexOf(target), 1);
+			switch (target.layers.length) {
+				case 0:
+					this.#selected_timeline.targets.splice(this.#selected_timeline.targets.indexOf(target), 1);
+					this.#emitSignal('removeTarget', {
+						timeline_id: this.#selected_timeline.id,
+						target_id: target.id
+					});
+					break;
+				default:
+					this.#emitSignal('removeLayer', {
+						timeline_id: this.#selected_timeline.id,
+						target_id: target.id,
+						layer_name: layer.name
+					});
 			}
 			this.#repaintAll();
 		});
-		
-		this.#dispatcher.on('value.change', (layer, value, dont_save) => {
-			if (layer._mute) {
-				return;
-			}
-			const currentTime = this.#selected_timeline.get('ui:currentTime').value;
+
+		this.#dispatcher.on('value.change', (target, layer, value, dont_save) => {
+			// if (layer._mute) {
+			// 	return;
+			// }
+			const currentTime = this.#selected_timeline.ui.currentTime;
 			const timeInLayer = utils.findTimeinLayer(layer, currentTime);
 			if (typeof (timeInLayer) === 'number') {
-				layer.frames.splice(timeInLayer, 0, {
-					time: currentTime,
-					value: value,
-					_color: '#' + (Math.random() * 0xffffff | 0).toString(16)
-				});
+				layer.frames.splice(timeInLayer, 0, new FrameProp(currentTime, value));
 				if (!dont_save) {
 				}
 			} else {
@@ -128,8 +136,8 @@ class Timeliner {
 			// we can decide also to "lock in" layers
 			// no changes to tween will be made etc.
 		});
-		this.#dispatcher.on('ease', (layer, ease_type) => {
-			const currentTime = this.#selected_timeline.get('ui:currentTime').value;
+		this.#dispatcher.on('ease', (target, layer, ease_type) => {
+			const currentTime = this.#selected_timeline.ui.currentTime;
 			const timeInLayer = utils.timeAtLayer(layer, currentTime);
 			if (timeInLayer && timeInLayer.entry) {
 				timeInLayer.entry.tween = ease_type;
@@ -137,42 +145,37 @@ class Timeliner {
 			this.#repaintAll();
 		});
 		this.#dispatcher.on('controls.toggle_play', () => {
-			if(this.#selected_timeline.targets.length == 0) {
+			if (this.#selected_timeline.targets.length == 0) {
 				return;
 			}
 			if (this.#start_play) {
-				this.pausePlaying();
+				this.pause();
 			} else {
-				this.startPlaying();
+				this.play();
 			}
-		});
-		this.#dispatcher.on('controls.restart_play', () => {
-			if (!this.#start_play) {
-				this.startPlaying();
-			}
-			this.setCurrentTime(this.#played_from);
 		});
 		this.#dispatcher.on('controls.pause', () => {
-			this.pausePlaying();
+			this.pause();
 		});
 		this.#dispatcher.on('controls.stop', () => {
-			if(this.#selected_timeline.targets.length == 0) {
+			if (this.#selected_timeline.targets.length == 0) {
 				return;
 			}
-			this.pausePlaying();
+			this.pause();
 		});
 		this.#dispatcher.on('controls.stop', () => {
-			if(this.#selected_timeline.targets.length == 0) {
+			if (this.#selected_timeline.targets.length == 0) {
 				return;
 			}
 			if (this.#start_play !== null) {
-				this.pausePlaying();
+				this.pause();
 			}
-			this.setCurrentTime(0);
+			this.#setCurrentTime(0);
 		});
 		this.#dispatcher.on('time.update', (time) => {
 			this.#selected_timeline.ui.currentTime = time;
 			this.#repaintAll();
+			this.#emitSignal('changeTime');
 		});
 		this.#dispatcher.on('totalTime.update', (value) => {
 			// context.totalTime = value;
@@ -185,9 +188,8 @@ class Timeliner {
 			this.#repaintAll();
 		});
 		this.#dispatcher.on('update.scale', (timeScale) => {
-			console.log('update.scale', timeScale);
 			this.#selected_timeline.ui.timeScale = timeScale;
-			this.#timeline_panel.repaint();
+			this.#timeline_panel.updateState();
 		});
 		this.#dispatcher.on('state:save', (description) => {
 			this.#dispatcher.fire('status', description);
@@ -198,19 +200,27 @@ class Timeliner {
 			this.#timeline_panel.data = timeline;
 			this.#target_collection.data = timeline;
 			this.#selected_timeline = timeline;
+			this.#emitSignal('selectTimeline', this.#selected_timeline.id);
 		});
 		this.#dispatcher.on('timeline.add', () => {
-			const timeline = JSON.parse(JSON.stringify(TIMELINE_TEMPLATE));
-			timeline.name = 'Untitled timeline';
-			timeline.id = utils.generateUUID();
-			this.#data.timelines.push(timeline);
-			this.#selected_timeline = timeline;
+			this.#addTimeline();
 			this.#repaintAll();
+			this.#emitSignal('selectTimeline', this.#selected_timeline.id);
 		});
 		this.#dispatcher.on('timeline.remove', (timeline) => {
 			this.#data.timelines.splice(this.#data.timelines.indexOf(timeline), 1);
+			this.#emitSignal('removeTimeline', { timeline_id: timeline.id });
 			if (this.#selected_timeline === timeline) {
-				this.#selected_timeline = this.#data.timelines.length > 0 ? this.#data.timelines[0] : TIMELINE_TEMPLATE;
+				switch (this.#data.timelines.length) {
+					case 0:
+						this.#selected_timeline = JSON.parse(JSON.stringify(TIMELINE_TEMPLATE));
+						// this.#selected_timeline = null;
+						this.#emitSignal('selectTimeline', null);
+						break;
+					default:
+						this.#selected_timeline = this.#data.timelines[0];
+						this.#emitSignal('selectTimeline', this.#selected_timeline.id);
+				}
 			}
 			this.#repaintAll();
 		});
@@ -221,8 +231,6 @@ class Timeliner {
 		this.#subDom.appendChild(this.#timeline_collection.dom);
 		this.#subDom.appendChild(this.#target_collection.dom);
 		this.#subDom.appendChild(this.#timeline_panel.dom);
-		// this.#subDom.appendChild(this.#vertical_scroll_bar.dom);
-
 		this.#dom.appendChild(this.#subDom);
 
 		style(this.#dom, {
@@ -233,51 +241,68 @@ class Timeliner {
 			overflow: 'hidden',
 			backgroundColor: Theme.a,
 			color: Theme.d,
-			zIndex: Z_INDEX,
 			fontFamily: 'monospace',
-			fontSize: '12px'
+			fontSize: '12px',
 		});
 		container.appendChild(this.#dom);
-		this.paint();
+		this.#paint();
+		this.#emitSignal('selectTimeline', this.#selected_timeline.id);
 	}
 
-	startPlaying() {
-		this.#start_play = performance.now() - this.#selected_timeline.ui.currentTime * 1000;
-		this.#target_collection.setControlStatus(true);
-		if (this.#options?.dispatcherEventCb) {
-			if (this.#selected_timeline.ui.currentTime > 0) {
-				this.#options.dispatcherEventCb("resume");
-			} else {
-				this.#options.dispatcherEventCb("start");
-			}
+	#emitSignal(eventName, data) {
+		if (!this.#options || !this.#options.dispatcherEventCb) {
+			return;
+		}
+		switch (eventName) {
+			case 'removeLayer':
+				this.#options.dispatcherEventCb("removeLayer", data);
+				break;
+			case 'removeTarget':
+				this.#options.dispatcherEventCb("removeTarget", data);
+				break;
+			case 'changeTime':
+				const outputData = [];
+				const targets = this.#selected_timeline.targets;
+				for (let i = 0; i < targets.length; i++) {
+					const tmp = {
+						id: targets[i].id,
+						layer: {}
+					};
+					const target = targets[i];
+					for (let j = 0; j < target.layers.length; j++) {
+						const layer = target.layers[j];
+						tmp.layer[layer.name] = layer._value;
+					}
+					outputData.push(tmp);
+				}
+				this.#options.dispatcherEventCb("changeTime", outputData);
+				break;
+			case 'selectTimeline':
+				this.#options.dispatcherEventCb("selectTimeline", data);
+				break;
+			case 'removeTimeline':
+				this.#options.dispatcherEventCb("removeTimeline", data);
+				break;
+			default:
+				throw new Error(`Unknown event: ${eventName}`);
 		}
 	}
 
-	pausePlaying() {
-		this.#start_play = null;
-		this.#target_collection.setControlStatus(false);
-		if (this.#options?.dispatcherEventCb) {
-			this.#options.dispatcherEventCb("pause");
-		}
-	}
-
-	setCurrentTime(time) {
+	#setCurrentTime(time) {
 		time = Math.max(0, time);
 		this.#selected_timeline.ui.currentTime = time;
 		if (this.#start_play) {
 			this.#start_play = performance.now() - time * 1000;
 		}
 		this.#repaintAll();
-		if (this.#options?.dispatcherEventCb) {
-			this.#options.dispatcherEventCb("change-time", this.#selected_timeline.ui.currentTime);
-		}
+		this.#emitSignal('changeTime');
 	}
 
-	paint() {
-		requestAnimationFrame(this.paint.bind(this));
+	#paint() {
+		requestAnimationFrame(this.#paint.bind(this));
 		if (this.#start_play) {
 			const time = (performance.now() - this.#start_play) / 1000;
-			this.setCurrentTime(time);
+			this.#setCurrentTime(time);
 			if (time > this.#selected_timeline.ui.totalTime) {
 				this.#start_play = performance.now();
 			}
@@ -285,35 +310,13 @@ class Timeliner {
 		if (this.#needs_resize) {
 			this.#subDom.style.width = Settings.width + 'px';
 			this.#subDom.style.height = Settings.height + 'px';
-			this.restyle(this.#timeline_collection.dom, this.#target_collection.dom, this.#timeline_panel.dom);
+			this.#restyle(this.#timeline_collection.dom, this.#target_collection.dom, this.#timeline_panel.dom);
 			this.#timeline_panel.resize();
 			this.#repaintAll();
 			this.#needs_resize = false;
 			this.#dispatcher.fire('resize');
 		}
-		this.#timeline_panel._paint();
-	}
-
-
-	loadJSONString(stringData) {
-		try {
-			const jsonData = JSON.parse(stringData);
-			this.loadData(jsonData);
-		} catch (error) {
-			throw error;
-		}
-	}
-
-	loadData(jsonData) {
-		this.#data.setJSON(jsonData);
-		if (this.#data.getValue('ui') === undefined) {
-			this.#data.setValue('ui', {
-				currentTime: 0,
-				totalTime: Settings.default_length,
-				scrollTime: 0,
-				timeScale: Settings.time_scale
-			});
-		}
+		this.#timeline_panel.paint();
 	}
 
 	#repaintAll() {
@@ -324,21 +327,13 @@ class Timeliner {
 		this.#timeline_collection.updateSelected(this.#selected_timeline.id);
 
 		this.#target_collection.data = this.#selected_timeline;
-		this.#target_collection.updateStateAtTime(currentTime);
+		this.#target_collection.updateState(currentTime);
 
 		this.#timeline_panel.data = this.#selected_timeline;
-		this.#timeline_panel.repaint(currentTime);
+		this.#timeline_panel.updateState();
 	}
 
-	resize(width, height) {
-		// width -= 4;
-		Settings.width = width - Settings.LEFT_PANE_WIDTH;
-		Settings.height = height;
-		Settings.TIMELINE_SCROLL_HEIGHT = height - Settings.MARKER_TRACK_HEIGHT;
-		this.#needs_resize = true;
-	}
-
-	restyle(timelineCabinet, layerCabinet, panel) {
+	#restyle(timelineCabinet, layerCabinet, panel) {
 		style(timelineCabinet, {
 			position: 'absolute',
 			left: '0px',
@@ -367,24 +362,100 @@ class Timeliner {
 	}
 
 	// API functions
-	addLayerToTarget(targetID, layerName) {
-		if(!this.#selected_timeline) {
+	set data(data) {
+		this.#data = data;
+		this.#selected_timeline = this.#data.timelines.length > 0 ? this.#data.timelines[0] : JSON.parse(JSON.stringify(TIMELINE_TEMPLATE));
+		this.#timeline_collection.data = this.#selected_timeline;
+		this.#target_collection.data = this.#selected_timeline;
+		this.#timeline_panel.data = this.#selected_timeline;
+		this.#repaintAll();
+		if (this.#options?.dispatcherEventCb) {
+			this.#options.dispatcherEventCb("selectTimeline", this.#selected_timeline.id);
+		}
+	}
+
+	get data() {
+		return this.#data;
+	}
+
+	play() {
+		this.#start_play = performance.now() - this.#selected_timeline.ui.currentTime * 1000;
+		this.#target_collection.setControlStatus(true);
+		if (this.#options?.dispatcherEventCb) {
+			if (this.#selected_timeline.ui.currentTime > 0) {
+				this.#options.dispatcherEventCb("resume");
+			} else {
+				this.#options.dispatcherEventCb("start");
+			}
+		}
+	}
+
+	pause() {
+		this.#start_play = null;
+		this.#target_collection.setControlStatus(false);
+		if (this.#options?.dispatcherEventCb) {
+			this.#options.dispatcherEventCb("pause");
+		}
+	}
+
+	resize(width, height) {
+		Settings.width = width;
+		Settings.height = height;
+		this.#needs_resize = true;
+	}
+
+	updateKeyframeValue(targetID, layerName, value) {
+		if (!this.#selected_timeline) {
 			return;
 		}
 		const target = this.#selected_timeline.targets.find(t => t.id == targetID);
 		if (!target) {
 			throw new Error('Target not found');
 		}
-		target.layers.push(new LayerProp(layerName));
+		const layer = target.layers.find(l => l.name == layerName);
+		if (!layer) {
+			throw new Error('Layer not found');
+		}
+		const currentTime = this.#selected_timeline.ui.currentTime;
+		const timeInLayer = utils.findTimeinLayer(layer, currentTime);
+		if (typeof (timeInLayer) === 'number') {
+			layer.frames.splice(timeInLayer, 0, new FrameProp(currentTime, value));
+		} else {
+			timeInLayer.object.value = value;
+		}
 		this.#repaintAll();
 	}
 
-	addTarget({ id, name }) {
-		if(!this.#selected_timeline) {
-			return;
+	#addTimeline(name) {
+		const timeline = JSON.parse(JSON.stringify(TIMELINE_TEMPLATE));
+		timeline.name = name ? name : 'Untitled';
+		timeline.id = utils.generateUUID();
+		this.#data.timelines.push(timeline);
+		this.#selected_timeline = timeline;
+		return timeline;
+	}
+
+	#addTarget(id, name) {
+		const target = new TargetProp(id, name);
+		this.#selected_timeline.targets.push(target);
+		return target;
+	}
+
+	addLayerToTarget(target, layer) {
+		let isNewTimeline = false;
+		if (this.#data.timelines.length == 0) {
+			this.#addTimeline('Untitled');
+			isNewTimeline = true;
 		}
-		this.#selected_timeline.targets.push(new TargetProp(id, name));
+		let foundTarget = this.#selected_timeline.targets.find(t => t.id == target.id);
+		if (!foundTarget) {
+			foundTarget = this.#addTarget(target.id, target.name);
+		}
+		foundTarget.layers.push(new LayerProp(layer.name, this.#selected_timeline.ui.currentTime, layer.value));
 		this.#repaintAll();
+		if (isNewTimeline) {
+			this.#emitSignal('selectTimeline', this.#selected_timeline.id);
+		}
 	}
 
 	removeLayerFromTarget(targetID, layerName) {
@@ -418,10 +489,6 @@ class Timeliner {
 			values.push(o);
 		}
 		return values;
-	}
-
-	getValueJson = () => {
-		return JSON.stringify(this.#data);
 	}
 }
 

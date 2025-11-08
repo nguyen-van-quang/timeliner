@@ -1,16 +1,14 @@
 /* eslint-disable */
-import { Theme } from '../theme.js'
-import { UINumber } from '../ui/number.js'
-import { Tweens } from '../utils/tween.js'
-import { LayoutConstants } from '../layout_constants.js'
-import { utils } from '../utils/utils.js'
+import { Theme } from '../theme.js';
+import { UINumber } from '../ui/number.js';
+import { Tweens } from '../utils/tween.js';
+import { LayoutConstants } from '../layout_constants.js';
+import { utils } from '../utils/utils.js';
 const { style } = utils;
-
 class Layer {
     #data;
     #callback;
     #dom;
-    #state;
     #keyframe_button;
     #dropdown;
     #number;
@@ -39,9 +37,8 @@ class Layer {
         this.#dom.appendChild(this.#label);
 
         this.#number = new UINumber(data, this.#callback);
-        this.#number.onChange.do((value, done) => {
-            this.#data._value = value;
-            // this.#callback.fire('value.change', this.#data.value, value, done);
+        this.#number.onChange((value, done) => {
+            this.#callback('value.change', value);
         });
         style(this.#number.dom, {
             float: 'right',
@@ -79,22 +76,7 @@ class Layer {
         this.#dom.appendChild(remove_layer_btn);
     }
 
-    setState(l, s) {
-        this.#data = l;
-        this.#state = s;
-
-        var tmp_value = this.#state.get('_value');
-        if (tmp_value.value === undefined) {
-            tmp_value.value = 0;
-        }
-
-        this.#number.setValue(tmp_value.value);
-        this.#label.textContent = this.#state.get('name').value;
-
-        this.repaint();
-    }
-
-    repaint(time) {
+    updateState(time) {
         this.#dropdown.style.opacity = 0;
         this.#dropdown.disabled = true;
         this.#keyframe_button.style.color = Theme.b;
@@ -110,6 +92,7 @@ class Layer {
         if (o.keyframe) {
             this.#keyframe_button.style.color = Theme.c;
         }
+
         this.#data._value = o.value;
         this.#number.setValue(o.value);
         this.#number.paint();

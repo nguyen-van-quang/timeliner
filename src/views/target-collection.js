@@ -4,7 +4,6 @@ import { Layer } from './layer.js'
 import { IconButton } from '../ui/icon-button.js'
 import { utils } from '../utils/utils.js'
 import { Theme } from '../theme.js'
-import { UINumber } from '../ui/number.js'
 
 const { style, addClass } = utils
 const btnStyles = {
@@ -164,13 +163,17 @@ class TargetCollection {
                 const layer_ui = new Layer(layer, (event, data) => {
                     switch(event) {
                         case 'ease':
-                            layer.tween = data;
+                            // layer.tween = data;
+                            this.#dispatcher.fire('ease', target, layer, data);
                             break;
                         case 'keyframe':
                             this.#dispatcher.fire('keyframe', target, layer);
                             break;
                         case 'layer.remove':
                             this.#dispatcher.fire('layer.remove', target, layer);
+                            break;
+                        case 'value.change':
+                            this.#dispatcher.fire('value.change', target, layer, data);
                             break;
                     }
                 });
@@ -197,10 +200,10 @@ class TargetCollection {
         }
     }
 
-    updateStateAtTime(time) {
+    updateState(time) {
         time = time || 0;
         for(let i = 0; i < this.#layer_uis.length; i++) {
-            this.#layer_uis[i].repaint(time);
+            this.#layer_uis[i].updateState(time);
         }
     }
 

@@ -1,130 +1,65 @@
 /* eslint-disable */
 import { Theme } from '../theme.js'
 import { Do } from '../utils/do.js'
-import { handleDrag } from '../utils/handle-drag.js'
 import { utils } from '../utils/utils.js'
-const { firstDefined, style } = utils;
+const { style } = utils;
 
-function UINumber(config) {
-	config = config || {};
-	var min = config.min === undefined ? -Infinity : config.min;
+class UINumber {
+	#dom;
+	#value = 0;
+	#do = new Do();
 
-	// config.xstep and config.ystep allow configuring adjustment
-	// speed across each axis.
-	// config.wheelStep and config.wheelStepFine allow configuring
-	// adjustment speed for mousewheel, and mousewheel while holding <alt>
+	constructor() {
+		this.#dom = document.createElement('input');
+		style(this.#dom, {
+			textAlign: 'center',
+			fontSize: '10px',
+			padding: '1px',
+			cursor: 'ns-resize',
+			width: '40px',
+			margin: 0,
+			marginRight: '10px',
+			appearance: 'none',
+			outline: 'none',
+			border: 0,
+			background: 'none',
+			borderBottom: '1px dotted ' + Theme.c,
+			color: Theme.c
+		});
 
-	// If only config.step is specified, all other adjustment speeds
-	// are set to the same value.
-	var xstep = firstDefined(config.xstep, config.step, 0.001);
-	var ystep = firstDefined(config.ystep, config.step, 0.1);
-	var wheelStep = firstDefined(config.wheelStep, ystep);
-	var wheelStepFine = firstDefined(config.wheelStepFine, xstep);
+		this.#dom.addEventListener('change', (e) => {
+			const value = parseInt(this.#dom.value, 10) || 0;
+			this.#do.fire(value);
+		});
 
-	var precision = config.precision || 3;
-	// Range
-	// Max
+		// Allow keydown presses in inputs, don't allow parent to block them
+		this.#dom.addEventListener('keydown', (e) => {
+			e.stopPropagation();
+		});
 
-	var span = document.createElement('input');
-	// span.type = 'number'; // spinner
-
-	style(span, {
-		textAlign: 'center',
-		fontSize: '10px',
-		padding: '1px',
-		cursor: 'ns-resize',
-		width: '40px',
-		margin: 0,
-		marginRight: '10px',
-		appearance: 'none',
-		outline: 'none',
-		border: 0,
-		background: 'none',
-		borderBottom: '1px dotted '+ Theme.c,
-		color: Theme.c
-	});
-
-	var me = this;
-	var state, value = 0, unchanged_value;
-
-	this.onChange = new Do();
-
-	span.addEventListener('change', function(e) {
-		console.log('input changed', span.value);
-		value = parseFloat(span.value, 10);
-
-		fireChange();
-	});
-
-	// Allow keydown presses in inputs, don't allow parent to block them
-	span.addEventListener('keydown', function(e) {
-		e.stopPropagation();
-	})
-
-	span.addEventListener('focus', function(e) {
-		span.setSelectionRange(0, span.value.length);
-	})
-
-	span.addEventListener('wheel', function(e) {
-		// Disregard pixel/line/page scrolling and just
-		// use event direction.
-		var inc = e.deltaY > 0? 1 : -1;
-		if (e.altKey) {
-			inc *= wheelStepFine;
-		} else {
-			inc *= wheelStep;
-		}
-		value = clamp(value + inc);
-		fireChange();
-	})
-
-	handleDrag(span, onDown, onMove, onUp);
-
-	function clamp(value) {
-		return Math.max(min, value);
+		this.#dom.addEventListener('focus', (e) => {
+			this.#dom.setSelectionRange(0, this.#dom.value.length);
+		});
 	}
 
-	function onUp(e) {
-		if (e.moved) fireChange();
-		else {
-			// single click
-			span.focus();
+	get dom() {
+		return this.#dom;
+	}
+
+	onChange(callback) {
+		this.#do.do(callback);
+	}
+
+	setValue(v) {
+		this.#value = v;
+		this.#dom.value = this.#value;
+	}
+
+	paint() {
+		if (this.#value && document.activeElement !== this.#dom) {
+			this.#dom.value = this.#value;
 		}
 	}
-
-	function onMove(e) {
-		var dx = e.dx;
-		var dy = e.dy;
-
-		value = unchanged_value + (dx * xstep) + (dy * -ystep);
-
-		value = clamp(value);
-
-		// value = +value.toFixed(precision); // or toFixed toPrecision
-		me.onChange.fire(value, true);
-	}
-
-	function onDown(e) {
-		unchanged_value = value;
-	}
-
-	function fireChange() {
-		me.onChange.fire(value);
-	}
-
-	this.dom = span;
-
-	// public
-	this.setValue = function(v) {
-		value = v;
-		span.value = value.toFixed(precision);
-	};
-
-	this.paint = function() {
-		if (value && document.activeElement !== span) {
-			span.value = value.toFixed(precision);
-		}
-	};
 }
 
 export { UINumber }

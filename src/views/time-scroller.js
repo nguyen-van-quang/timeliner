@@ -5,166 +5,134 @@ const proxy_ctx = utils.proxy_ctx;
 import { handleDrag } from '../utils/handle-drag.js'
 
 /* This is the top bar where it shows a horizontal scrolls as well as a custom view port */
-
-function Rect() {
-
-}
-
-Rect.prototype.set = function(x, y, w, h, color, outline) {
-	this.x = x;
-	this.y = y;
-	this.w = w;
-	this.h = h;
-	this.color = color;
-	this.outline = outline;
-};
-
-Rect.prototype.paint = function(ctx) {
-	ctx.fillStyle = Theme.b;  // // 'yellow';
-	ctx.strokeStyle = Theme.c;
-
-	this.shape(ctx);
-
-	ctx.stroke();
-	ctx.fill();
-};
-
-Rect.prototype.shape = function(ctx) {
-	ctx.beginPath();
-	ctx.rect(this.x, this.y, this.w, this.h);
-};
-
-Rect.prototype.contains = function(x, y) {
-	return x >= this.x && y >= this.y && x <= this.x + this.w && y <= this.y + this.h;
-};
-
-
-
-function ScrollCanvas(dispatcher, data) {
-	var width, height;
-
-	this.setSize = function(w, h) {
-		width = w;
-		height = h;
+class Rect {
+	constructor(x, y, w, h, color, outline) {
+		this.x = x;
+		this.y = y;
+		this.w = w;
+		this.h = h;
+		this.color = color;
+		this.outline = outline;
 	}
 
-	var TOP_SCROLL_TRACK = 20;
-	var MARGINS = 15;
+	set(x, y, w, h, color, outline) {
+		this.x = x;
+		this.y = y;
+		this.w = w;
+		this.h = h;
+		this.color = color;
+		this.outline = outline;
+	}
 
-	var scroller = {
+	paint(ctx) {
+		ctx.fillStyle = Theme.b;
+		ctx.strokeStyle = Theme.c;
+		this.shape(ctx);
+		ctx.stroke();
+		ctx.fill();
+	}
+
+	shape(ctx) {
+		ctx.beginPath();
+		ctx.rect(this.x, this.y, this.w, this.h);
+	}
+
+	contains(x, y) {
+		return x >= this.x && y >= this.y && x <= this.x + this.w && y <= this.y + this.h;
+	}
+}
+
+class ScrollCanvas {
+	#MARGINS = 15;
+	#width;
+	#height;
+	#scroller = {
 		left: 0,
 		grip_length: 0,
 		k: 1
 	};
+	#scrollRect = new Rect();
+	#draggingx = null;
+	#data;
+	#dispatcher;
 
-	var scrollRect = new Rect();
+	constructor(dispatcher, data) {
+		this.#dispatcher = dispatcher;
+		this.#data = data;
+	}
 
-	this.paint = function(ctx) {
-		var totalTime = data.ui.totalTime;
-		var scrollTime = data.ui.scrollTime;
-		var currentTime = data.ui.currentTime;
+	setSize(w, h) {
+		this.#width = w;
+		this.#height = h;
+	}
 
-		var pixels_per_second = data.ui.timeScale;
+	paint(ctx) {
+		const totalTime = this.#data.ui.totalTime;
+		const scrollTime = this.#data.ui.scrollTime;
+		const pixels_per_second = this.#data.ui.timeScale;
 
 		ctx.save();
-		var dpr = window.devicePixelRatio;
-		ctx.scale(dpr, dpr);
-
-		var w = width - 2 * MARGINS;
-		var h = 16; // TOP_SCROLL_TRACK;
-
-		ctx.clearRect(0, 0, width, height);
-		ctx.translate(MARGINS, 5);
+		ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+		ctx.clearRect(0, 0, this.#width, this.#height);
+		ctx.translate(this.#MARGINS, 5);
 
 		// outline scroller
 		ctx.beginPath();
 		ctx.strokeStyle = Theme.b;
+		const w = this.#width - 2* this.#MARGINS;
+		const h = 16;
 		ctx.rect(0, 0, w, h);
 		ctx.stroke();
 
-		var totalTimePixels = totalTime * pixels_per_second;
-		var k = w / totalTimePixels;
-		scroller.k = k;
-
-		var grip_length = w * k;
-
-		scroller.grip_length = grip_length;
-
-		scroller.left = scrollTime / totalTime * w;
-
-		scrollRect.set(scroller.left, 0, scroller.grip_length, h);
-		scrollRect.paint(ctx);
-
-		var r = currentTime / totalTime * w;
-
-		ctx.fillStyle =  Theme.c;
-		ctx.lineWidth = 2;
-
-		ctx.beginPath();
-
-		// circle
-		// ctx.arc(r, h2 / 2, h2 / 1.5, 0, Math.PI * 2);
-
-		// line
-		ctx.rect(r, 0, 2, h + 5);
-		ctx.fill()
-
-		ctx.fillText(currentTime && currentTime.toFixed(2), r, h + 14);
-		// ctx.fillText(currentTime && currentTime.toFixed(3), 10, 10);
-		ctx.fillText(totalTime, 300, 14);
-
+		const totalTimePixels = totalTime * pixels_per_second;
+		const k = w / totalTimePixels;
+		if (k <= 1) {
+			this.#scroller.k = k;
+			const grip_length = Math.min(w, w * k);
+			this.#scroller.grip_length = grip_length;
+			this.#scroller.left = scrollTime * (w - grip_length) / totalTime;
+			// draw scroller grip
+			this.#scrollRect.set(this.#scroller.left, 0, this.#scroller.grip_length, h);
+			this.#scrollRect.paint(ctx);
+		}
+		else {
+			this.#scrollRect.set(0, 0, w, h);
+			this.#scrollRect.paint(ctx);
+			this.#data.ui.scrollTime = 0;
+		}
 		ctx.restore();
 	}
 
-	/** Handles dragging for scroll bar **/
-
-	var draggingx = null;
-
-	this.onDown = function(e) {
-		// console.log('ondown', e);
-
-		if (scrollRect.contains(e.offsetx - MARGINS, e.offsety -5)) {
-			draggingx = scroller.left;
+	onDown(e) {
+		if (this.#scrollRect.contains(e.offsetx - this.#MARGINS, e.offsety -5)) {
+			this.#draggingx = this.#scroller.left;
 			return;
 		}
-
-		var totalTime = data.ui.totalTime;
-		var pixels_per_second = data.ui.timeScale;
-		var w = width - 2 * MARGINS;
-
-		var t = (e.offsetx - MARGINS) / w * totalTime;
-		// t = Math.max(0, t);
-
-		// data.get('ui:currentTime').value = t;
-		dispatcher.fire('time.update', t);
-
+		const totalTime = this.#data.ui.totalTime;
+		const w = this.#width - 2 * this.#MARGINS;
+		const t = (e.offsetx - this.#MARGINS) / w * totalTime;
+		this.#dispatcher.fire('time.update', t);
+		// recalculate scroll time
+		const scrollTime = (e.offsetx - this.#MARGINS) / (w - this.#scroller.grip_length) * totalTime;
+		this.#dispatcher.fire('update.scrollTime', scrollTime);
 		if (e.preventDefault) e.preventDefault();
+	}
 
-	};
-
-	this.onMove = function move(e) {
-		if (draggingx != null) {
-			var totalTime = data.ui.totalTime;
-			var w = width - 2 * MARGINS;
-			var scrollTime = (draggingx + e.dx) / w * totalTime;
-
-			console.log(scrollTime, draggingx, e.dx, scroller.grip_length, w);
-
-			if (draggingx  + e.dx + scroller.grip_length > w) return;
-
-			dispatcher.fire('update.scrollTime', scrollTime);
-
+	onMove(e) {
+		if (this.#draggingx != null) {
+			const totalTime = this.#data.ui.totalTime;
+			const w = this.#width - 2 * this.#MARGINS;
+			const scrollTime = (this.#draggingx + e.dx) / w * totalTime;
+			if (this.#draggingx  + e.dx + this.#scroller.grip_length > w) { return; }
+			this.#dispatcher.fire('update.scrollTime', scrollTime);
 		} else {
 			this.onDown(e);
 		}
-
-	};
-
-	this.onUp = function(e) {
-		draggingx = null;
 	}
 
-	/*** End handling for scrollbar ***/
+	onUp(e) {
+		this.#draggingx = null;
+	}
 }
 
 export { ScrollCanvas }

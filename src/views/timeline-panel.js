@@ -11,7 +11,7 @@ const { proxy_ctx, style } = utils;
 
 const LINE_HEIGHT = LayoutConstants.LINE_HEIGHT,
 	DIAMOND_SIZE = LayoutConstants.DIAMOND_SIZE,
-	TIME_SCROLLER_HEIGHT = 35,
+	TIME_SCROLLER_HEIGHT = 25,
 	MARKER_TRACK_HEIGHT = 38,
 	LEFT_PANE_WIDTH = LayoutConstants.LEFT_PANE_WIDTH,
 	TOP = 10;
@@ -208,7 +208,8 @@ class TimelinePanel {
 			// border: '1px solid green'
 		});
 
-		this.#scroll_canvas = new Canvas(LayoutConstants.width, TIME_SCROLLER_HEIGHT);
+		// this.#scroll_canvas = new Canvas(LayoutConstants.width, TIME_SCROLLER_HEIGHT);
+		this.#scroll_canvas = new Canvas(LayoutConstants.width - 2 * LayoutConstants.LEFT_PANE_WIDTH, TIME_SCROLLER_HEIGHT);
 		style(this.#scroll_canvas.dom, {
 			position: 'absolute',
 			top: '0px',
@@ -233,7 +234,7 @@ class TimelinePanel {
 
 		this.#track_canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
 
-		this.repaint();
+		this.updateState();
 
 		const handleDown = (e) => {
 			this.#mousedown2 = true;
@@ -282,15 +283,11 @@ class TimelinePanel {
 		this.#track_canvas.style.width = LayoutConstants.width + 'px';
 		this.#track_canvas.style.height = h + 'px';
 		this.#SCROLL_HEIGHT = LayoutConstants.height - TIME_SCROLLER_HEIGHT;
-		this.#scroll_canvas.setSize(LayoutConstants.width, TIME_SCROLLER_HEIGHT);
+		this.#scroll_canvas.setSize(LayoutConstants.width - 2 * LayoutConstants.LEFT_PANE_WIDTH, TIME_SCROLLER_HEIGHT);
 	}
 
-	repaint() {
+	updateState() {
 		this.#needsRepaint = true;
-	}
-
-	paint() {
-		this._paint();
 	}
 
 	drawLayerContents() {
@@ -426,7 +423,7 @@ class TimelinePanel {
 			.restore();
 	}
 
-	_paint() {
+	paint() {
 		if (!this.#needsRepaint) {
 			this.pointerEvents();
 			return;
@@ -442,7 +439,7 @@ class TimelinePanel {
 		this.#ctx.scale(this.#dpr, this.#dpr);
 		this.#ctx.lineWidth = 1; // .5, 1, 2
 
-		this.#scroll_canvas.repaint();
+		this.#scroll_canvas.paint();
 		this.setTimeScale();
 
 		this.#currentTime = this.#data ? this.#data.ui.currentTime : 0;
@@ -460,7 +457,7 @@ class TimelinePanel {
 			this.#ctx.textAlign = 'center';
 			let t = (i * units - offsetUnits) / this.#time_scale + this.#frame_start;
 			t = utils.format_friendly_seconds(t);
-			this.#ctx.fillText(t, x, MARKER_TRACK_HEIGHT);
+			this.#ctx.fillText(t, x, MARKER_TRACK_HEIGHT - 28);
 		}
 
 		this.#ctx.moveTo(13, 35);
@@ -475,7 +472,7 @@ class TimelinePanel {
 			this.#ctx.strokeStyle = Theme.c;
 			this.#ctx.beginPath();
 			const x = i * units + this.#LEFT_GUTTER - offsetUnits;
-			const y = MARKER_TRACK_HEIGHT - 29;
+			const y = MARKER_TRACK_HEIGHT - 22;
 			const h = 16;
 			this.#ctx.moveTo(x, y);
 			this.#ctx.lineTo(x, y + h);
@@ -492,7 +489,7 @@ class TimelinePanel {
 			this.#ctx.strokeStyle = Theme.c;
 			this.#ctx.beginPath();
 			const x = i * units + this.#LEFT_GUTTER - offsetUnits;
-			const y = MARKER_TRACK_HEIGHT - 23;
+			const y = MARKER_TRACK_HEIGHT - 16;
 			const h = 10;
 			this.#ctx.moveTo(x, y);
 			this.#ctx.lineTo(x, y + h);
@@ -515,7 +512,7 @@ class TimelinePanel {
 		const x = (this.#currentTime - this.#frame_start) * this.#time_scale + this.#LEFT_GUTTER;
 		const txt = utils.format_friendly_seconds(this.#currentTime);
 		const textWidth = this.#ctx.measureText(txt).width;
-		const base_line = MARKER_TRACK_HEIGHT - 18;
+		const base_line = MARKER_TRACK_HEIGHT - 10;
 		const half_rect = textWidth / 2 + 4;
 		// draw cursor vertical line
 		this.#ctx.beginPath();
@@ -588,7 +585,7 @@ class TimelinePanel {
 	set data(data) {
 		this.#data = data;
 		this.#targets = data ? data.targets : [];
-		this.repaint();
+		this.updateState();
 	}
 
 	get dom() {

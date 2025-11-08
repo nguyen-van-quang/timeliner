@@ -220,6 +220,7 @@ function timeAtLayer(layer, t) {
 			var dt = t - prev_entry.time;
 			var k = dt / time_diff;
 			var new_value = prev_entry.value + Tweens[tween](k) * value_diff;
+			new_value = +new_value.toFixed(0); // round to integer
 
 			return {
 				entry: prev_entry,
@@ -359,6 +360,10 @@ function generateUUID() { // Public Domain/MIT
 	});
 }
 
+function generateColor() {
+	return '#' + (Math.random() * 0xffffff | 0).toString(16);
+}
+
 var utils = {
 	STORAGE_PREFIX,
 	firstDefined,
@@ -374,7 +379,8 @@ var utils = {
 	findTimeinLayer,
 	timeAtLayer,
 	proxy_ctx,
-	generateUUID
+	generateUUID,
+	generateColor
 };
 
 export { utils }

@@ -1,101 +1,76 @@
 /* eslint-disable */
 import { handleDrag } from '../utils/handle-drag.js';
+class Canvas {
+	#canvas;
+	#ctx;
+	#width;
+	#height;
+	#dpr;
+	#canvasItems = [];
+	#child;
 
-function Canvas(w, h) {
-
-	var canvas, ctx, width, height, dpr;
-
-	var canvasItems = [];
-	var child;
-
-	function create() {
-		canvas = document.createElement('canvas');
-		ctx = canvas.getContext('2d');
+	constructor(w, h) {
+		this.#create();
+		this.setSize(w, h);
+		handleDrag(this.#canvas,
+			(e) => {
+				if (this.#child.onDown) { this.#child.onDown(e) }
+			},
+			(e) => {
+				if (this.#child.onMove) { this.#child.onMove(e) }
+			},
+			(e) => {
+				if (this.#child.onUp) { this.#child.onUp(e) }
+			}
+		);
 	}
 
-	function setSize(w, h) {
-		width = w;
-		height = h;
-		dpr = window.devicePixelRatio;
-		canvas.width = width * dpr;
-		canvas.height = height * dpr;
-		canvas.style.width = width + 'px';
-		canvas.style.height = height + 'px';
-
-		if (child) child.setSize(w, h);
+	#create() {
+		this.#canvas = document.createElement('canvas');
+		this.#ctx = this.#canvas.getContext('2d');
 	}
 
-	function paint(ctx) {
-		if (child) {
-			if (!child.paint) console.warn('implement repaint()')
-			child.paint(ctx);
+	setSize(w, h) {
+		this.#width = w;
+		this.#height = h;
+		this.#dpr = window.devicePixelRatio;
+		this.#canvas.width = this.#width * this.#dpr;
+		this.#canvas.height = this.#height * this.#dpr;
+		this.#canvas.style.width = this.#width + 'px';
+		this.#canvas.style.height = this.#height + 'px';
+		
+		if (this.#child) this.#child.setSize(w, h);
+	}
+
+	paint() {
+		if(this.#child) {
+			if(!this.#child.paint) {
+				throw new Error('child does not implement paint()');
+			}
+			this.#child.paint(this.#ctx);
 		}
-
-		var item;
-		for (var i = 0; i < canvasItems.length; i++) {
-			item = canvasItems[i];
-			item.paint()
+		for (let item of this.#canvasItems) {
+			item.paint();
 		}
 	}
 
-	function repaint() {
-		paint(ctx);
+	add(item) {
+		this.#canvasItems.push(item);
 	}
 
-	function add(item) {
-		canvasItems.push(item)
+	remove(item) {
+		this.#canvasItems.splice(this.#canvasItems.indexOf(item), 1);
 	}
 
-	function remove(item) {
-		canvasItems.splice(canvasItems.indexOf(item), 1);
+	uses(child) {
+		this.#child = child;
+		this.#child.add = this.add.bind(this);
+		this.#child.remove = this.remove.bind(this);
 	}
 
-	function uses(c) {
-		child = c;
-		child.add = this.add;
-		child.remove = this.remove;
+	get dom() {
+		return this.#canvas;
 	}
-
-	create();
-	setSize(w, h);
-	this.setSize = setSize;
-	this.repaint = repaint;
-	this.uses = uses;
-
-	this.dom = canvas;
-
-	handleDrag(canvas,
-		function down(e) {
-			if (child.onDown) { child.onDown(e) }
-		},
-		function move(e) {
-			if (child.onMove) { child.onMove(e) }
-		},
-		function up(e) {
-			if (child.onUp) { child.onUp(e) }
-		}
-		// function hit(e) {
-		// 	if (child.onHit) { child.onHit(e) };
-		// }
-	);
 }
 
-
 export { Canvas }
-
-/*
- * Usage: canvas = new Canvas(width, height);
- * canvas.resize();
- */
-
-// children
-// 1: override repaint
-// 2: add objects
-// Canvas.uses(CanvasChild);
-// CanvasItem
-// width, height, x, y
-// allow Drag
-// allow Click
-// mouseOver
-//
-
